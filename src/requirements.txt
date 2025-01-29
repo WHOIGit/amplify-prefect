@@ -1,0 +1,4 @@
+prefect==3.1.14 
+requests==2.32.3
+pillow==11.1.0
+amplify-storage-utils @ git+https://github.com/WHOIGit/amplify-storage-utils.git@a2953c109aa554facf5d5a174632ab92d6aff01a
