@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 
 
+# Parameters relevant to SegGPT inference
 class SegGPTRequest(BaseModel):
     input_dir: str
     prompt_dir: str
@@ -10,5 +11,6 @@ class SegGPTRequest(BaseModel):
     num_prompts: int = 0
 
 
+# Parameters relevant to container infrastructure
 class InfrastructureParams(BaseModel):
     tmp_dir: str = "/tmp/prefect"

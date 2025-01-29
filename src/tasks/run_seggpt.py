@@ -14,7 +14,7 @@ from PIL import Image
 
 def prepare_images(image_dir: str):
     """
-    Loads a directory of images into binary format. Returns the list of binary images, where each
+    Load a directory of images into binary format. Returns the list of binary images, where each
     entry in the list is a tuple of the form (binarized image, image name).
     """
     image_names = os.listdir(image_dir)
@@ -40,7 +40,7 @@ def request(
     num_prompts: int,
 ):
     """
-    Sends a request to SegGPT and saves the results.
+    Send a request to SegGPT and save the results.
     """
     input_imgs = prepare_images(input_dir)
     prompt_imgs = prepare_images(prompt_dir)
