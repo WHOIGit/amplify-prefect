@@ -11,6 +11,7 @@ printf {your postgres password} | podman secret create postgres_password -
 printf {your mediastore url} | podman secret create mediastore_url -
 printf {your mediastore token} | podman secret create mediastore_token -
 printf {external host name of your machine} | podman secret create external_host_name -
+printf {provenance store url} | podman secret create provenance_store_url -
 ```
 
 Then create the Podman pod:
