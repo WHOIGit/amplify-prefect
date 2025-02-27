@@ -46,6 +46,7 @@ podman run -d --rm --pod amplify_pod \
   --secret mediastore_token,type=env,target=MEDIASTORE_TOKEN \
   --secret mediastore_url,type=env,target=MEDIASTORE_URL \
   --secret external_host_name,type=env,target=EXTERNAL_HOST_NAME \
+  --secret provenance_store_url,type=env,target=PROVENANCE_STORE_URL \
   -v /path/to/your/data/directory:/workspace/data \
   localhost/prefect:latest
 ```

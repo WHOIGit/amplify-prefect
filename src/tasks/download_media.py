@@ -3,11 +3,11 @@ import os
 from pathlib import Path
 
 from prefect import task
-
 from storage.mediastore import MediaStore
 
+from prov import on_task_complete
 
-@task()
+@task(on_completion=[on_task_complete])
 def download(key: str, tmp_dir: str):
     """
     Download the media item with the given key from the media store, and store it in the given temporary directory.

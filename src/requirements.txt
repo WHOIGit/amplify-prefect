@@ -2,3 +2,5 @@ prefect==3.1.14
 requests==2.32.3
 pillow==11.1.0
 amplify-storage-utils @ git+https://github.com/WHOIGit/amplify-storage-utils.git@a2953c109aa554facf5d5a174632ab92d6aff01a
+provenance-client @ git+https://github.com/WHOIGit/amplify-provenance-client.git@39e4570691c658e36fd0f4b6c72a84e421902fdd
+amplify-schemas @ git+https://github.com/WHOIGit/amplify-schemas@provenance
