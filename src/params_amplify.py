@@ -14,3 +14,11 @@ class SegGPTRequest(BaseModel):
 # Parameters relevant to container infrastructure
 class InfrastructureParams(BaseModel):
     tmp_dir: str = "/tmp/prefect"
+
+
+class YOLOParams(BaseModel):
+    data_dir: str
+    output_dir: str
+    model_name: str
+    epochs: int
+    gpus: str

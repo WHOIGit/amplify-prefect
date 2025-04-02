@@ -64,4 +64,27 @@ In separate terminals, launch the relevant workflows:
 python src/workflow.py
 ```
 
+## YOLO
+Once the Prefect server is running, run the yolo workflow:
+```
+python src/train_yolo_workflow.py
+```
+
+Then, in the GUI, create a flow with the relevant parameters. The data directory should be in a format where there is a `dataset.yaml` file. The beginning of `dataset.yaml` should be:
+```
+path: /data # dataset root dir
+train: images/train # train images (relative to 'path') 4 images
+val: images/val # val images (relative to 'path') 4 images
+test: # test images (optional)
+```
+These are relative paths that will be used in the YOLO container. If you have a test dir, make sure it is in your data directory in the same format as train and val (`images/test`. 
+
+After these, list the classes. For example:
+```
+names:
+  0: person
+  1: bicycle
+  2: car
+```
+
 Navigate to the UI in a browser at {external host name of your machine}:4200. 
