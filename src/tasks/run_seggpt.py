@@ -61,7 +61,7 @@ def request(
         "patch_images": patch_images,
         "num_prompts": num_prompts_for_request,
     }
-    response = requests.post("http://seggpt:8080/predictions/seggpt", json=data)
+    response = requests.post("http://localhost:8080/predictions/seggpt", json=data)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)

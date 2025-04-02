@@ -8,16 +8,23 @@ First, create the relevant secrets (passwords, local urls, etc.) using Podman se
 ```
 printf {your postgres username} | podman secret create postgres_username -
 printf {your postgres password} | podman secret create postgres_password -
-printf {your mediastore url} | podman secret create mediastore_url -
-printf {your mediastore token} | podman secret create mediastore_token -
-printf {external host name of your machine} | podman secret create external_host_name -
-printf {provenance store url} | podman secret create provenance_store_url -
+```
+
+Export environmental variables for workflow orchestrator
+```
+export POSTGRES_USERNAME={your postgres username}
+export POSTGRES_PASSWORD={your postgres password}
+export EXTERNAL_HOST_NAME={external host name of your machine}
+export PROVENANCE_STORE_URL={provenance store url}
+export MEDIASTORE_URL={your mediastore url}
+export MEDIASTORE_TOKEN={your mediastore token}
 ```
 
 Then create the Podman pod:
 ```
-podman pod create --name amplify_pod -p 4200:4200
+podman pod create --name amplify_pod -p 5432:5432 -p 8080:8080
 ```
+Port 5432 makes the postgres database accessible to the workflow orchestor, and port 8080 makes seggpt accessible to the workflow orchestrator.
 
 Launch the container serving SegGPT inference using TorchServe. Instructions for building the `seggpt-ts` image are in the [AMPLIfy SegGPT Repository](https://github.com/WHOIGit/seggpt/tree/main/serve#running-with-dockerized-torchserve).
 ```
@@ -38,18 +45,23 @@ podman run -d --pod amplify_pod \
   postgres:latest
 ```
 
+Create a virtual environment and install dependencies:
+```
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r src/requirements.txt
+```
+
 Launch the container running the Prefect server and workflow:
 ```
-podman run -d --rm --pod amplify_pod \
-  --name prefect \
-  --secret postgres_username,type=env,target=POSTGRES_USERNAME \
-  --secret postgres_password,type=env,target=POSTGRES_PASSWORD \
-  --secret mediastore_token,type=env,target=MEDIASTORE_TOKEN \
-  --secret mediastore_url,type=env,target=MEDIASTORE_URL \
-  --secret external_host_name,type=env,target=EXTERNAL_HOST_NAME \
-  --secret provenance_store_url,type=env,target=PROVENANCE_STORE_URL \
-  -v /path/to/your/data/directory:/workspace/data \
-  localhost/prefect:latest
+prefect config set PREFECT_SERVER_API_HOST="${EXTERNAL_HOST_NAME}"
+prefect config set PREFECT_API_DATABASE_CONNECTION_URL="postgresql+asyncpg://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@postgres:5432/prefect"
+prefect server start
+```
+
+In separate terminals, launch the relevant workflows:
+```
+python src/workflow.py
 ```
 
 Navigate to the UI in a browser at {external host name of your machine}:4200. 
