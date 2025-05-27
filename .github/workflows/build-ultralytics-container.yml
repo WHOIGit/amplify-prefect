@@ -29,4 +29,5 @@ jobs:
         with:
           context: ./docker/amplify-ultralytics
           push: true
+          no-cache: true
           tags: ghcr.io/whoigit/amplify-prefect/amplify-ultralytics:latest
