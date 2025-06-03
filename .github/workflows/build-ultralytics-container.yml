@@ -27,7 +27,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./docker/amplify-ultralytics
+          context: .
           push: true
           no-cache: true
           tags: ghcr.io/whoigit/amplify-prefect/amplify-ultralytics:latest
