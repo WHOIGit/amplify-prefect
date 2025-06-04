@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - '*'
-      - '.github/workflows/build-ultralytics-container.yml'
 
 jobs:
   build:
@@ -28,6 +27,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: docker/amplify-ultralytics/Dockerfile
           push: true
           no-cache: true
           tags: ghcr.io/whoigit/amplify-prefect/amplify-ultralytics:latest
