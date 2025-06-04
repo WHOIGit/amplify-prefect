@@ -3,7 +3,7 @@ name: Build and Push AMPLIfy Ultralytics Custom Container
 on:
   push:
     paths:
-      - 'docker/amplify-ultralytics/**'
+      - '*'
       - '.github/workflows/build-ultralytics-container.yml'
 
 jobs:
