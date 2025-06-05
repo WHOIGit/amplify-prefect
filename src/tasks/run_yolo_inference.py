@@ -8,7 +8,7 @@ from params_amplify import YOLOInferenceParams, YOLOVisualizationParams
 
 
 @task(on_completion=[on_task_complete], log_prints=True)
-def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualization_params: YOLOVisualizationParams):
+def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualization_params: YOLOVisualizationParams, yolo_image: str):
     """
     Run YOLO in a Podman container.
     """
@@ -19,7 +19,7 @@ def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualiz
         f"-v {yolo_inference_params.data_dir}:/data "
         f"-v {yolo_inference_params.output_dir}:/output "
         f"-v {yolo_inference_params.model_weights_path}:/input/weights.pt "
-        f"localhost/ultralytics:latest "
+        f"{yolo_image} "
         f"/ultralytics/yolo_inference.sh "
         f"{yolo_inference_params.device} "
         f"{yolo_inference_params.agnostic_nms} "
@@ -50,6 +50,7 @@ def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualiz
         )
     
     logger = get_run_logger()
+    logger. info(f'command: {command}')
 
     process = subprocess.Popen(
         command, 
