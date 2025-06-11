@@ -1,6 +1,6 @@
 # AMPLIfy Prefect Pipeline
 
-A Prefect server for orchestrating inference runs with SegGPT and a media store. After setting up the system with Podman, users can monitor and run inference using the UI accessible in a browser.
+A Prefect server for orchestrating machine learning training and inference runs. Supports YOLO (training and inference), SegGPT (inference), and ONNX models (inference). After setting up the system with Podman, users can monitor and run the workflows using the UI accessible in a browser.
 
 ## Setup
 
