@@ -1,0 +1,45 @@
+name: Build and Push AMPLIfy Containers
+
+on:
+  push:
+    paths:
+      - '*'
+      - '.github/workflows/build-amplify-containers.yml'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+      contents: read
+
+    strategy:
+      matrix:
+        include:
+          - name: amplify-ultralytics
+            dockerfile: docker/amplify-ultralytics/Dockerfile
+            tag: ghcr.io/whoigit/amplify-prefect/amplify-ultralytics:latest
+
+          - name: amplify-onnx
+            dockerfile: docker/onnx/Dockerfile
+            tag: ghcr.io/whoigit/amplify-prefect/amplify-onnx:latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.name }} image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          no-cache: true
+          tags: ${{ matrix.tag }}
