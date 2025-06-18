@@ -18,9 +18,8 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
         "-it --rm --gpus all --ipc host"
     ]
     
-    # Add CUDA_VISIBLE_DEVICES if specified
-    if onnx_inference_params.cuda_visible_devices is not None:
-        command_parts.append(f"-e CUDA_VISIBLE_DEVICES={onnx_inference_params.cuda_visible_devices}")
+    # Add CUDA_VISIBLE_DEVICES
+    command_parts.append(f"-e CUDA_VISIBLE_DEVICES={onnx_inference_params.cuda_visible_devices}")
     
     command_parts.extend([
         f"-v {onnx_inference_params.model_dir}:/app/models",
