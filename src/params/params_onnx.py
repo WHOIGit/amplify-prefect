@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 # Parameters relevant to ONNX inference
 class ONNXInferenceParams(BaseModel):
@@ -7,8 +8,8 @@ class ONNXInferenceParams(BaseModel):
     output_dir: str
     model_name: str
     path_to_bin_dir: str
-    batch: int
-    classes: str
-    outdir: str
-    outfile: str
-    force-notorch: bool
+    batch: Optional[int] = None
+    classes: Optional[str] = None
+    outdir: Optional[str] = None
+    outfile: Optional[str] = None
+    force_notorch: Optional[bool] = None
