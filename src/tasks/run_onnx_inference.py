@@ -17,9 +17,9 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
         "podman run",
         "-it --rm --gpus all --ipc host",
         "-e CUDA_VISIBLE_DEVICES=1",
-        f"-v {onnx_inference_params.model_dir}/models:/app/models",
-        f"-v {onnx_inference_params.input_dir}/inputs:/app/inputs",
-        f"-v {onnx_inference_params.output_dir}/outputs:/app/outputs",
+        f"-v {onnx_inference_params.model_dir}:/app/models",
+        f"-v {onnx_inference_params.input_dir}:/app/inputs",
+        f"-v {onnx_inference_params.output_dir}:/app/outputs",
         onnx_image,
         f"models/{onnx_inference_params.model_name}",
         f"inputs/{onnx_inference_params.path_to_bin_dir}"
