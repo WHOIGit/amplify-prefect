@@ -13,3 +13,4 @@ class ONNXInferenceParams(BaseModel):
     outdir: Optional[str] = None
     outfile: Optional[str] = None
     force_notorch: Optional[bool] = None
+    cuda_visible_devices: Optional[str] = None
