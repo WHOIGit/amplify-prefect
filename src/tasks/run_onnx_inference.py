@@ -49,6 +49,18 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
         stderr=subprocess.PIPE,
         universal_newlines=True
     )
+    
+    # Stream stdout
     for line in process.stdout:
-        logger.info(line)
+        logger.info(line.rstrip())
+    
+    # Wait for process to complete and check return code
+    process.wait()
+    
+    # If there was an error, log stderr and raise exception
+    if process.returncode != 0:
+        stderr_output = process.stderr.read()
+        if stderr_output:
+            logger.error(f"Container failed with stderr: {stderr_output}")
+        raise RuntimeError(f"Podman container failed with exit code {process.returncode}")
 
