@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 import shutil
 
-from podman import PodmanClient
 from prefect import flow
 
 from params_amplify import YOLOParams
