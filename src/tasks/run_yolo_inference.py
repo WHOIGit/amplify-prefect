@@ -1,5 +1,5 @@
 from prefect import task
-import subprocess
+import docker
 
 from prefect import get_run_logger
 
@@ -10,55 +10,74 @@ from params_amplify import YOLOInferenceParams, YOLOVisualizationParams
 @task(on_completion=[on_task_complete], log_prints=True)
 def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualization_params: YOLOVisualizationParams, yolo_image: str):
     """
-    Run YOLO in a Podman container.
+    Run YOLO in a Docker container.
     """
-
-    command = (
-        f"podman run "
-        f"-it --rm --gpus all --ipc host "
-        f"-v {yolo_inference_params.data_dir}:/data "
-        f"-v {yolo_inference_params.output_dir}:/output "
-        f"-v {yolo_inference_params.model_weights_path}:/input/weights.pt "
-        f"{yolo_image} "
-        f"/ultralytics/yolo_inference.sh "
-        f"{yolo_inference_params.device} "
-        f"{yolo_inference_params.agnostic_nms} "
-        f"{yolo_inference_params.iou} "
-        f"{yolo_inference_params.conf} "
-        f"{yolo_inference_params.imgsz} "
-        f"{yolo_inference_params.batch } "
-        f"{yolo_inference_params.half} "
-        f"{yolo_inference_params.max_det} "
-        f"{yolo_inference_params.vid_stride} "
-        f"{yolo_inference_params.stream_buffer} "
-        f"{yolo_inference_params.visualize} "
-        f"{yolo_inference_params.augment} "
-        f"{yolo_inference_params.classes} "
-        f"{yolo_inference_params.retina_masks} "
-        f"{yolo_inference_params.embed} "
-        f"{yolo_inference_params.name} "
-        f"{yolo_inference_params.verbose} "
-        f"{yolo_visualization_params.show} "
-        f"{yolo_visualization_params.save} "
-        f"{yolo_visualization_params.save_frames} "
-        f"{yolo_visualization_params.save_txt} "
-        f"{yolo_visualization_params.save_conf} "
-        f"{yolo_visualization_params.save_crop} "
-        f"{yolo_visualization_params.show_labels} "
-        f"{yolo_visualization_params.show_conf} "
-        f"{yolo_visualization_params.show_boxes}"
-        )
     
+    client = docker.from_env()
     logger = get_run_logger()
-    logger. info(f'command: {command}')
-
-    process = subprocess.Popen(
-        command, 
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        universal_newlines=True
-    )
-    for line in process.stdout:
-        logger.info(line)
+    
+    # Set up volumes
+    volumes = {
+        yolo_inference_params.data_dir: {'bind': '/data', 'mode': 'rw'},
+        yolo_inference_params.output_dir: {'bind': '/output', 'mode': 'rw'},
+        yolo_inference_params.model_weights_path: {'bind': '/input/weights.pt', 'mode': 'ro'}
+    }
+    
+    # Build command arguments
+    command_args = [
+        "/ultralytics/yolo_inference.sh",
+        str(yolo_inference_params.device),
+        str(yolo_inference_params.agnostic_nms),
+        str(yolo_inference_params.iou),
+        str(yolo_inference_params.conf),
+        str(yolo_inference_params.imgsz),
+        str(yolo_inference_params.batch),
+        str(yolo_inference_params.half),
+        str(yolo_inference_params.max_det),
+        str(yolo_inference_params.vid_stride),
+        str(yolo_inference_params.stream_buffer),
+        str(yolo_inference_params.visualize),
+        str(yolo_inference_params.augment),
+        str(yolo_inference_params.classes),
+        str(yolo_inference_params.retina_masks),
+        str(yolo_inference_params.embed),
+        str(yolo_inference_params.name),
+        str(yolo_inference_params.verbose),
+        str(yolo_visualization_params.show),
+        str(yolo_visualization_params.save),
+        str(yolo_visualization_params.save_frames),
+        str(yolo_visualization_params.save_txt),
+        str(yolo_visualization_params.save_conf),
+        str(yolo_visualization_params.save_crop),
+        str(yolo_visualization_params.show_labels),
+        str(yolo_visualization_params.show_conf),
+        str(yolo_visualization_params.show_boxes)
+    ]
+    
+    logger.info(f'Running container with command: {" ".join(command_args)}')
+    
+    try:
+        container = client.containers.run(
+            yolo_image,
+            command_args,
+            volumes=volumes,
+            device_requests=[docker.types.DeviceRequest(device_ids=["all"], capabilities=[["gpu"]])],
+            ipc_mode="host",
+            remove=True,
+            detach=False,
+            stdout=True,
+            stderr=True,
+            stream=True
+        )
+        
+        # Stream output
+        for line in container:
+            logger.info(line.decode('utf-8').rstrip())
+            
+    except docker.errors.ContainerError as e:
+        logger.error(f"Container failed with stderr: {e.stderr.decode('utf-8') if e.stderr else 'No stderr'}")
+        raise RuntimeError(f"Docker container failed with exit code {e.exit_status}")
+    except Exception as e:
+        logger.error(f"Unexpected error running container: {str(e)}")
+        raise
 
