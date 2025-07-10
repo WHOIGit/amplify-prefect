@@ -23,6 +23,12 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
         onnx_inference_params.output_dir: {'bind': '/app/outputs', 'mode': 'rw'}
     }
     
+    # Mount classes file if provided
+    classes_container_path = None
+    if onnx_inference_params.classes is not None:
+        classes_container_path = '/app/classes.txt'
+        volumes[onnx_inference_params.classes] = {'bind': classes_container_path, 'mode': 'ro'}
+    
     # Set up environment variables
     environment = {
         'CUDA_VISIBLE_DEVICES': onnx_inference_params.cuda_visible_devices
@@ -38,7 +44,7 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
     if onnx_inference_params.batch is not None:
         command_args.extend(["--batch", str(onnx_inference_params.batch)])
     if onnx_inference_params.classes is not None:
-        command_args.extend(["--classes", str(onnx_inference_params.classes)])
+        command_args.extend(["--classes", classes_container_path])
     if onnx_inference_params.outdir is not None:
         command_args.extend(["--outdir", onnx_inference_params.outdir])
     if onnx_inference_params.outfile is not None:
