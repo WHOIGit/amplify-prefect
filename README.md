@@ -84,7 +84,6 @@ The ONNX inference workflow requires the following parameters in the Prefect UI:
 - `path_to_bin_dir`: Path to binary directory within input_dir
 - `batch` (optional): Batch size for inference
 - `classes` (optional): Specific classes to process
-- `outdir` (optional): Custom output directory name
 - `outfile` (optional): Custom output filename
 - `force_notorch` (optional): Force non-PyTorch backend
 - `cuda_visible_devices`: GPU devices to use (default: "0,1,2,3")
