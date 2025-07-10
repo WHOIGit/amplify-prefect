@@ -45,8 +45,6 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
         command_args.extend(["--batch", str(onnx_inference_params.batch)])
     if onnx_inference_params.classes is not None:
         command_args.extend(["--classes", classes_container_path])
-    if onnx_inference_params.outdir is not None:
-        command_args.extend(["--outdir", onnx_inference_params.outdir])
     if onnx_inference_params.outfile is not None:
         command_args.extend(["--outfile", onnx_inference_params.outfile])
     if onnx_inference_params.force_notorch is not None and onnx_inference_params.force_notorch:
