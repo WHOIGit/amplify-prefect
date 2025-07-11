@@ -3,7 +3,7 @@ name: Build and Push AMPLIfy Containers
 on:
   push:
     paths:
-      - '*'
+      - 'docker/**'
       - '.github/workflows/build-amplify-containers.yml'
 
 jobs:
