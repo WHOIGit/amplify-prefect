@@ -81,7 +81,6 @@ The ONNX inference workflow requires the following parameters in the Prefect UI:
 - `input_dir`: Directory containing input data
 - `output_dir`: Directory where results will be saved
 - `model_name`: Name of the ONNX model file
-- `path_to_bin_dir`: Path to binary directory within input_dir
 - `batch` (optional): Batch size for inference
 - `classes` (optional): Specific classes to process
 - `outfile` (optional): Custom output filename

@@ -37,7 +37,7 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
     # Build command arguments
     command_args = [
         f"models/{onnx_inference_params.model_name}",
-        f"inputs/{onnx_inference_params.path_to_bin_dir}"
+        "inputs"
     ]
     
     # Add optional flags only if they are specified

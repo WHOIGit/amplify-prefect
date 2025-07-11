@@ -7,7 +7,6 @@ class ONNXInferenceParams(BaseModel):
     input_dir: str
     output_dir: str
     model_name: str
-    path_to_bin_dir: str
     batch: Optional[int] = None
     classes: Optional[str] = None
     outfile: Optional[str] = None
