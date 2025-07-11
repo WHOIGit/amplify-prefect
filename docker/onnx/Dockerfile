@@ -11,7 +11,7 @@ WORKDIR /app
 # Install git and other required tools, clone the repo, install dependencies, and clean up
 RUN apt-get update && \
     apt-get install -y git && \
-    git clone https://github.com/WHOIGit/amplify_onnx_inference.git /app && \
+    git clone -b preserve-directory-structure https://github.com/WHOIGit/amplify_onnx_inference.git /app && \
     pip install -r /app/requirements.txt && \
     apt-get remove -y git && \
     apt-get autoremove -y && \
