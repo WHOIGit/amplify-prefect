@@ -18,7 +18,7 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
     
     # Set up volumes
     volumes = {
-        onnx_inference_params.model_dir: {'bind': '/app/models', 'mode': 'rw'},
+        onnx_inference_params.model: {'bind': '/app/models/model.onnx', 'mode': 'ro'},
         onnx_inference_params.input_dir: {'bind': '/app/inputs', 'mode': 'rw'},
         onnx_inference_params.output_dir: {'bind': '/app/outputs', 'mode': 'rw'}
     }
@@ -36,7 +36,7 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
     
     # Build command arguments
     command_args = [
-        f"models/{onnx_inference_params.model_name}",
+        "models/model.onnx",
         "inputs"
     ]
     

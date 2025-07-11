@@ -77,10 +77,9 @@ Navigate to the Prefect UI in your browser at `http://{EXTERNAL_HOST_NAME}:4200`
 The ONNX inference workflow requires the following parameters in the Prefect UI:
 
 **ONNXInferenceParams:**
-- `model_dir`: Directory containing the ONNX model files
+- `model`: Path to the ONNX model file
 - `input_dir`: Directory containing input data
 - `output_dir`: Directory where results will be saved
-- `model_name`: Name of the ONNX model file
 - `batch` (optional): Batch size for inference
 - `classes` (optional): Specific classes to process
 - `outfile` (optional): Custom output filename
