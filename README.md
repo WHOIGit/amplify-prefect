@@ -1,6 +1,6 @@
 # AMPLIfy Prefect Pipeline
 
-A Prefect server for orchestrating machine learning training and inference runs. Supports YOLO (training and inference), SegGPT (inference), and ONNX models (inference). After setting up the system with Docker, users can monitor and run the workflows using the UI accessible in a browser.
+A Prefect server for orchestrating machine learning training and inference runs. Supports YOLO (training and inference), SegGPT (inference), ONNX models (inference), and IFCB flow metric (training). After setting up the system with Docker, users can monitor and run the workflows using the UI accessible in a browser.
 
 ## Setup
 
@@ -68,6 +68,13 @@ source .env
 python src/flows/yolo_inference.py
 ```
 
+**For IFCB Flow Metric Training:**
+```bash
+source .venv/bin/activate
+source .env
+python src/flows/ifcb_training.py
+```
+
 ## Using the Workflows
 
 Navigate to the Prefect UI in your browser at `http://{EXTERNAL_HOST_NAME}:4200`
@@ -122,6 +129,20 @@ The YOLO inference workflow requires two parameter sets:
 - `show_labels`: Display labels for each detection (default: true)
 - `show_conf`: Display confidence scores alongside labels (default: true)
 - `show_boxes`: Draw bounding boxes around detected objects (default: true)
+
+### IFCB Flow Metric Training Workflow
+
+The IFCB flow metric training workflow requires the following parameters in the Prefect UI:
+
+**IFCBTrainingParams:**
+- `data_dir`: Directory containing IFCB point cloud data
+- `output_dir`: Directory where trained model will be saved
+- `id_file` (optional): File containing list of IDs to load (one PID per line)
+- `n_jobs`: Number of parallel jobs for load/extraction phase (-1 uses all CPUs, default: -1)
+- `contamination`: Expected fraction of anomalous distributions (default: 0.1)
+- `aspect_ratio`: Camera frame aspect ratio (width/height, default: 1.36)
+- `chunk_size`: Number of PIDs to process in each chunk (default: 100)
+- `model_filename`: Filename for the trained model (default: "classifier.pkl")
 
 ## YOLO Training Data Format
 
