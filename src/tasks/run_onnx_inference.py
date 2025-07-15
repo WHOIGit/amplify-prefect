@@ -34,8 +34,9 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
         'CUDA_VISIBLE_DEVICES': onnx_inference_params.cuda_visible_devices
     }
     
-    # Build command arguments
+    # Build command arguments for torch inference script
     command_args = [
+        "python", "src/infer_ifcbbins_torch.py",
         "models/model.onnx",
         "inputs"
     ]
@@ -48,7 +49,7 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
     if onnx_inference_params.outfile is not None:
         command_args.extend(["--outfile", onnx_inference_params.outfile])
     if onnx_inference_params.force_notorch is not None and onnx_inference_params.force_notorch:
-        command_args.append("--force_notorch")
+        command_args.append("--force-notorch")
     
     logger.info(f'Running container with command: {" ".join(command_args)}')
     
