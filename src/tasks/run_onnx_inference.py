@@ -36,7 +36,6 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
     
     # Build command arguments for torch inference script
     command_args = [
-        "python", "src/infer_ifcbbins_torch.py",
         "models/model.onnx",
         "inputs"
     ]
