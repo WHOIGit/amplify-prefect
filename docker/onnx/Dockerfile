@@ -19,4 +19,4 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Default command (allows overriding with arguments)
-ENTRYPOINT ["python", "src/infer_ifcbbins.py"]
+ENTRYPOINT ["python", "src/infer_ifcbbins_torch.py"]
