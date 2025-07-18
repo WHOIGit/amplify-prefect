@@ -30,11 +30,6 @@ def _create_parameter_combinations(search_params: IFCBHyperparameterSearchParams
     else:
         param_grid['contamination'] = [search_params.default_contamination]
     
-    # Add aspect ratio values if specified
-    if search_params.aspect_ratio_range is not None:
-        param_grid['aspect_ratio'] = _generate_values_from_range(search_params.aspect_ratio_range)
-    else:
-        param_grid['aspect_ratio'] = [search_params.default_aspect_ratio]
     
     # Add chunk size values if specified
     if search_params.chunk_size_range is not None:
@@ -89,7 +84,7 @@ def run_ifcb_hyperparameter_search(search_params: IFCBHyperparameterSearchParams
             id_file=search_params.id_file,
             n_jobs=search_params.n_jobs,
             contamination=param_combo['contamination'],
-            aspect_ratio=param_combo['aspect_ratio'],
+            aspect_ratio=search_params.aspect_ratio,
             chunk_size=int(param_combo['chunk_size']),
             model_filename=search_params.model_filename
         )
