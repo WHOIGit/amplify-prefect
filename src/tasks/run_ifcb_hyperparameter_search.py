@@ -31,11 +31,6 @@ def _create_parameter_combinations(search_params: IFCBHyperparameterSearchParams
         param_grid['contamination'] = [search_params.default_contamination]
     
     
-    # Add chunk size values if specified
-    if search_params.chunk_size_range is not None:
-        param_grid['chunk_size'] = _generate_values_from_range(search_params.chunk_size_range)
-    else:
-        param_grid['chunk_size'] = [search_params.default_chunk_size]
     
     # Generate all combinations
     keys = param_grid.keys()
@@ -85,7 +80,7 @@ def run_ifcb_hyperparameter_search(search_params: IFCBHyperparameterSearchParams
             n_jobs=search_params.n_jobs,
             contamination=param_combo['contamination'],
             aspect_ratio=search_params.aspect_ratio,
-            chunk_size=int(param_combo['chunk_size']),
+            chunk_size=search_params.chunk_size,
             model_filename=search_params.model_filename
         )
         

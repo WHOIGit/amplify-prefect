@@ -25,14 +25,10 @@ class IFCBHyperparameterSearchParams(BaseModel):
         None, 
         description="Range/values for contamination parameter (expected fraction of anomalous distributions)"
     )
-    chunk_size_range: Optional[HyperparameterRange] = Field(
-        None,
-        description="Range/values for chunk_size parameter (number of PIDs to process in each chunk)"
-    )
     
     # Fixed parameters (not searched)
     aspect_ratio: float = Field(1.36, description="Camera frame aspect ratio (fixed for IFCB data)")
+    chunk_size: int = Field(100, description="Number of PIDs to process in each chunk (fixed for efficiency)")
     
     # Default values for parameters not being searched
     default_contamination: float = Field(0.1, description="Default contamination if not searching")
-    default_chunk_size: int = Field(100, description="Default chunk size if not searching")
