@@ -25,6 +25,14 @@ class IFCBHyperparameterSearchParams(BaseModel):
         None, 
         description="Range/values for contamination parameter (expected fraction of anomalous distributions)"
     )
+    max_samples_range: Optional[HyperparameterRange] = Field(
+        None,
+        description="Range/values for max_samples parameter (number of samples to draw for each base estimator)"
+    )
+    max_features_range: Optional[HyperparameterRange] = Field(
+        None,
+        description="Range/values for max_features parameter (number of features to draw for each base estimator)"
+    )
     
     # Fixed parameters (not searched)
     aspect_ratio: float = Field(1.36, description="Camera frame aspect ratio (fixed for IFCB data)")
@@ -32,3 +40,5 @@ class IFCBHyperparameterSearchParams(BaseModel):
     
     # Default values for parameters not being searched
     default_contamination: float = Field(0.1, description="Default contamination if not searching")
+    default_max_samples: str = Field("auto", description="Default max_samples if not searching")
+    default_max_features: float = Field(1.0, description="Default max_features if not searching")

@@ -37,6 +37,8 @@ def run_ifcb_training(ifcb_training_params: IFCBTrainingParams, ifcb_image: str)
         "--contamination", str(ifcb_training_params.contamination),
         "--aspect-ratio", str(ifcb_training_params.aspect_ratio),
         "--chunk-size", str(ifcb_training_params.chunk_size),
+        "--max-samples", str(ifcb_training_params.max_samples),
+        "--max-features", str(ifcb_training_params.max_features),
         "--model", f"/app/output/{ifcb_training_params.model_filename}"
     ]
     

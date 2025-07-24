@@ -30,6 +30,18 @@ def _create_parameter_combinations(search_params: IFCBHyperparameterSearchParams
     else:
         param_grid['contamination'] = [search_params.default_contamination]
     
+    # Add max_samples values if specified
+    if search_params.max_samples_range is not None:
+        param_grid['max_samples'] = _generate_values_from_range(search_params.max_samples_range)
+    else:
+        param_grid['max_samples'] = [search_params.default_max_samples]
+    
+    # Add max_features values if specified
+    if search_params.max_features_range is not None:
+        param_grid['max_features'] = _generate_values_from_range(search_params.max_features_range)
+    else:
+        param_grid['max_features'] = [search_params.default_max_features]
+    
     
     
     # Generate all combinations
@@ -81,7 +93,9 @@ def run_ifcb_hyperparameter_search(search_params: IFCBHyperparameterSearchParams
             contamination=param_combo['contamination'],
             aspect_ratio=search_params.aspect_ratio,
             chunk_size=search_params.chunk_size,
-            model_filename=search_params.model_filename
+            model_filename=search_params.model_filename,
+            max_samples=param_combo['max_samples'],
+            max_features=param_combo['max_features']
         )
         
         try:

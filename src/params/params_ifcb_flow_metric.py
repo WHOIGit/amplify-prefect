@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Union
 
 # Parameters relevant to IFCB flow metric training
 class IFCBTrainingParams(BaseModel):
@@ -11,3 +11,5 @@ class IFCBTrainingParams(BaseModel):
     aspect_ratio: float = Field(1.36, description="Camera frame aspect ratio (width/height)")
     chunk_size: int = Field(100, description="Number of PIDs to process in each chunk")
     model_filename: str = Field("classifier.pkl", description="Filename for the trained model")
+    max_samples: Union[int, float, str] = Field("auto", description="Number of samples to draw from X to train each base estimator")
+    max_features: Union[int, float] = Field(1.0, description="Number of features to draw from X to train each base estimator")
