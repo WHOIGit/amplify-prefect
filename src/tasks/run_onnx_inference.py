@@ -1,5 +1,6 @@
 from prefect import task
 import docker
+import os
 
 from prefect import get_run_logger
 
@@ -16,9 +17,13 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
     client = docker.from_env()
     logger = get_run_logger()
     
+    # Get original model filename
+    model_filename = os.path.basename(onnx_inference_params.model)
+    model_container_path = f'/app/models/{model_filename}'
+    
     # Set up volumes
     volumes = {
-        onnx_inference_params.model: {'bind': '/app/models/model.onnx', 'mode': 'ro'},
+        onnx_inference_params.model: {'bind': model_container_path, 'mode': 'ro'},
         onnx_inference_params.input_dir: {'bind': '/app/inputs', 'mode': 'rw'},
         onnx_inference_params.output_dir: {'bind': '/app/outputs', 'mode': 'rw'}
     }
@@ -36,7 +41,7 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
     
     # Build command arguments for torch inference script
     command_args = [
-        "models/model.onnx",
+        f"models/{model_filename}",
         "inputs"
     ]
     
