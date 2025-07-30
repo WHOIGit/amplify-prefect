@@ -32,20 +32,12 @@ WORKDIR /ultralytics
 RUN git clone --branch v8.3.148 --depth 1 https://github.com/ultralytics/ultralytics.git . && \
     git config --global --add safe.directory /ultralytics
 
-# Add sample model
-ADD https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt tmp/yolo11n.pt
-
 # Install pip packages
 RUN pip install uv
 RUN uv pip install --system ".[export]" --no-deps albumentations pycocotools "onnxruntime-gpu" tensorrt wandb opencv-python
 
-# Run exports to AutoInstall packages
-RUN yolo export model=tmp/yolo11n.pt format=edgetpu imgsz=32
-RUN yolo export model=tmp/yolo11n.pt format=ncnn imgsz=32
-RUN uv pip install --system paddlepaddle x2paddle
-
 # Clean up
-RUN rm -rf tmp /root/.config/Ultralytics/persistent_cache.json
+RUN rm -rf /root/.config/Ultralytics/persistent_cache.json
 
 # Copy your custom inference script
 COPY docker/amplify-ultralytics/yolo_inference.sh /ultralytics/yolo_inference.sh
