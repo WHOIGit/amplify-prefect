@@ -74,4 +74,14 @@ class IFCBInferenceParams(BaseModel):
     aspect_ratio: float = Field(1.36, description="Camera frame aspect ratio (width/height)")
     chunk_size: int = Field(100, description="Number of PIDs to process in each chunk")
     output_filename: str = Field("scores.csv", description="Filename for the output CSV file")
-    
+
+
+# Parameters relevant to IFCB flow metric evaluation
+class IFCBEvaluationParams(BaseModel):
+    csv1_path: str = Field(..., description="Path to first CSV file with anomaly scores")
+    csv2_path: str = Field(..., description="Path to second CSV file with anomaly scores")
+    output_dir: str = Field(..., description="Directory where the violin plot will be saved")
+    output_filename: str = Field("violin_plot.png", description="Filename for the output violin plot")
+    title: str = Field("Score Distributions by Category (Violin Plot)", description="Title for the violin plot")
+    name1: str = Field("Dataset 1", description="Name for first distribution")
+    name2: str = Field("Dataset 2", description="Name for second distribution")
