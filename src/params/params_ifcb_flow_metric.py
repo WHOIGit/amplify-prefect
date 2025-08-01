@@ -85,3 +85,19 @@ class IFCBEvaluationParams(BaseModel):
     title: str = Field("Score Distributions by Category (Violin Plot)", description="Title for the violin plot")
     name1: str = Field("Dataset 1", description="Name for first distribution")
     name2: str = Field("Dataset 2", description="Name for second distribution")
+
+
+# Parameters for full IFCB flow metric evaluation (bad vs normal data)
+class IFCBFullEvaluationParams(BaseModel):
+    bad_data_dir: str = Field(..., description="Directory containing subdirectories of known bad IFCB data")
+    normal_data_dir: str = Field(..., description="Directory containing normal/unknown IFCB bin data")
+    model_path: str = Field(..., description="Path to the trained IFCB model file")
+    output_dir: str = Field(..., description="Directory where all evaluation outputs will be saved")
+    
+    # Optional parameters for inference
+    n_jobs: int = Field(-1, description="Number of parallel jobs for feature extraction")
+    aspect_ratio: float = Field(1.36, description="Camera frame aspect ratio")
+    chunk_size: int = Field(100, description="Number of PIDs to process in each chunk")
+    
+    # Optional parameters for visualization
+    normal_data_name: str = Field("Not Known Bad", description="Label for normal data in plot")
