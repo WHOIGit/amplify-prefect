@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y git
 WORKDIR /app
 
 # Clone the ifcb-flow-metric repository
-RUN git clone -b time-features https://github.com/WHOIGit/ifcb-flow-metric.git /app
+RUN git clone -b feature-isolation https://github.com/WHOIGit/ifcb-flow-metric.git /app
 
 # Install Python dependencies
 RUN pip install -r requirements.txt

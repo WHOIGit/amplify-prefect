@@ -8,6 +8,58 @@ from src.prov import on_task_complete
 from src.params.params_ifcb_flow_metric import IFCBTrainingParams
 
 
+def generate_feature_config_yaml(params: IFCBTrainingParams) -> str:
+    """Generate YAML configuration string from user feature parameters."""
+    config = {
+        'spatial_stats': {
+            'mean_x': params.use_mean_x,
+            'mean_y': params.use_mean_y,
+            'std_x': params.use_std_x,
+            'std_y': params.use_std_y,
+            'median_x': params.use_median_x,
+            'median_y': params.use_median_y,
+            'iqr_x': params.use_iqr_x,
+            'iqr_y': params.use_iqr_y,
+        },
+        'distribution_shape': {
+            'ratio_spread': params.use_ratio_spread,
+            'core_fraction': params.use_core_fraction,
+        },
+        'clipping_detection': {
+            'duplicate_fraction': params.use_duplicate_fraction,
+            'max_duplicate_fraction': params.use_max_duplicate_fraction,
+        },
+        'histogram_uniformity': {
+            'cv_x': params.use_cv_x,
+            'cv_y': params.use_cv_y,
+        },
+        'statistical_moments': {
+            'skew_x': params.use_skew_x,
+            'skew_y': params.use_skew_y,
+            'kurt_x': params.use_kurt_x,
+            'kurt_y': params.use_kurt_y,
+        },
+        'pca_orientation': {
+            'angle': params.use_angle,
+            'eigen_ratio': params.use_eigen_ratio,
+        },
+        'edge_features': {
+            'left_edge_fraction': params.use_left_edge_fraction,
+            'right_edge_fraction': params.use_right_edge_fraction,
+            'top_edge_fraction': params.use_top_edge_fraction,
+            'bottom_edge_fraction': params.use_bottom_edge_fraction,
+            'total_edge_fraction': params.use_total_edge_fraction,
+        },
+        'temporal': {
+            'second_t_value': params.use_second_t_value,
+            't_var': params.use_t_var,
+        }
+    }
+    
+    import yaml
+    return yaml.dump(config)
+
+
 @task(on_completion=[on_task_complete], log_prints=True)
 def run_ifcb_training(ifcb_training_params: IFCBTrainingParams, ifcb_image: str):
     """
@@ -45,6 +97,10 @@ def run_ifcb_training(ifcb_training_params: IFCBTrainingParams, ifcb_image: str)
     # Add optional id-file flag if provided
     if ifcb_training_params.id_file is not None:
         command_args.extend(["--id-file", id_file_container_path])
+    
+    # Generate and add feature configuration
+    feature_config_yaml = generate_feature_config_yaml(ifcb_training_params)
+    command_args.extend(["--config", feature_config_yaml])
     
     logger.info(f'Running container with command: {" ".join(command_args)}')
     
