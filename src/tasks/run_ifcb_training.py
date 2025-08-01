@@ -10,49 +10,50 @@ from src.params.params_ifcb_flow_metric import IFCBTrainingParams
 
 def generate_feature_config_yaml(params: IFCBTrainingParams) -> str:
     """Generate YAML configuration string from user feature parameters."""
+    feature_config = params.feature_config
     config = {
         'spatial_stats': {
-            'mean_x': params.use_mean_x,
-            'mean_y': params.use_mean_y,
-            'std_x': params.use_std_x,
-            'std_y': params.use_std_y,
-            'median_x': params.use_median_x,
-            'median_y': params.use_median_y,
-            'iqr_x': params.use_iqr_x,
-            'iqr_y': params.use_iqr_y,
+            'mean_x': feature_config.use_mean_x,
+            'mean_y': feature_config.use_mean_y,
+            'std_x': feature_config.use_std_x,
+            'std_y': feature_config.use_std_y,
+            'median_x': feature_config.use_median_x,
+            'median_y': feature_config.use_median_y,
+            'iqr_x': feature_config.use_iqr_x,
+            'iqr_y': feature_config.use_iqr_y,
         },
         'distribution_shape': {
-            'ratio_spread': params.use_ratio_spread,
-            'core_fraction': params.use_core_fraction,
+            'ratio_spread': feature_config.use_ratio_spread,
+            'core_fraction': feature_config.use_core_fraction,
         },
         'clipping_detection': {
-            'duplicate_fraction': params.use_duplicate_fraction,
-            'max_duplicate_fraction': params.use_max_duplicate_fraction,
+            'duplicate_fraction': feature_config.use_duplicate_fraction,
+            'max_duplicate_fraction': feature_config.use_max_duplicate_fraction,
         },
         'histogram_uniformity': {
-            'cv_x': params.use_cv_x,
-            'cv_y': params.use_cv_y,
+            'cv_x': feature_config.use_cv_x,
+            'cv_y': feature_config.use_cv_y,
         },
         'statistical_moments': {
-            'skew_x': params.use_skew_x,
-            'skew_y': params.use_skew_y,
-            'kurt_x': params.use_kurt_x,
-            'kurt_y': params.use_kurt_y,
+            'skew_x': feature_config.use_skew_x,
+            'skew_y': feature_config.use_skew_y,
+            'kurt_x': feature_config.use_kurt_x,
+            'kurt_y': feature_config.use_kurt_y,
         },
         'pca_orientation': {
-            'angle': params.use_angle,
-            'eigen_ratio': params.use_eigen_ratio,
+            'angle': feature_config.use_angle,
+            'eigen_ratio': feature_config.use_eigen_ratio,
         },
         'edge_features': {
-            'left_edge_fraction': params.use_left_edge_fraction,
-            'right_edge_fraction': params.use_right_edge_fraction,
-            'top_edge_fraction': params.use_top_edge_fraction,
-            'bottom_edge_fraction': params.use_bottom_edge_fraction,
-            'total_edge_fraction': params.use_total_edge_fraction,
+            'left_edge_fraction': feature_config.use_left_edge_fraction,
+            'right_edge_fraction': feature_config.use_right_edge_fraction,
+            'top_edge_fraction': feature_config.use_top_edge_fraction,
+            'bottom_edge_fraction': feature_config.use_bottom_edge_fraction,
+            'total_edge_fraction': feature_config.use_total_edge_fraction,
         },
         'temporal': {
-            'second_t_value': params.use_second_t_value,
-            't_var': params.use_t_var,
+            'second_t_value': feature_config.use_second_t_value,
+            't_var': feature_config.use_t_var,
         }
     }
     
