@@ -100,4 +100,5 @@ class IFCBFullEvaluationParams(BaseModel):
     chunk_size: int = Field(100, description="Number of PIDs to process in each chunk")
     
     # Optional parameters for visualization
+    plot_title_prefix: str = Field("Anomaly Score Distribution", description="First part of the violin plot title")
     normal_data_name: str = Field("Not Known Bad", description="Label for normal data in plot")

@@ -69,8 +69,8 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
         run_ifcb_flow_metric_inference(bad_inference_params, ifcb_image)
         
         # Create violin plot comparing this bad subdirectory to normal data
-        plot_filename = f"evaluation_{subdir_name}_vs_normal.png"
-        plot_title = f"Anomaly Score Distribution: {subdir_name} vs Normal Data"
+        plot_filename = f"evaluation_{subdir_name}_vs_{ifcb_full_evaluation_params.normal_data_name.replace(' ', '_').lower()}.png"
+        plot_title = f"{ifcb_full_evaluation_params.plot_title_prefix}: {subdir_name} vs {ifcb_full_evaluation_params.normal_data_name}"
         
         evaluation_params = IFCBEvaluationParams(
             csv1_path=bad_csv_path,
