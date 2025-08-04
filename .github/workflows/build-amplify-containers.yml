@@ -25,9 +25,6 @@ jobs:
             dockerfile: docker/onnx/Dockerfile
             tag: ghcr.io/whoigit/amplify-prefect/amplify-onnx:latest
 
-          - name: amplify-ifcb-flow-metric
-            dockerfile: docker/ifcb-flow-metric/Dockerfile
-            tag: ghcr.io/whoigit/amplify-prefect/amplify-ifcb-flow-metric:latest
 
     steps:
       - uses: actions/checkout@v3
