@@ -16,7 +16,7 @@ def ifcb_inference_flow(ifcb_inference_params: IFCBInferenceParams):
     """
     
     # Define the Docker image for IFCB flow metric inference
-    ifcb_image = "ghcr.io/whoigit/amplify-prefect/amplify-ifcb-flow-metric:latest"
+    ifcb_image = "ghcr.io/whoigit/ifcb-flow-metric:feature-isolation"
     
     # Pull the latest image
     pull_images([ifcb_image])

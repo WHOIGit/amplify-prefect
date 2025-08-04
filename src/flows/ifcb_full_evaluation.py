@@ -21,7 +21,7 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
     """
     
     # Define the Docker image
-    ifcb_image = "ghcr.io/whoigit/amplify-prefect/amplify-ifcb-flow-metric:latest"
+    ifcb_image = "ghcr.io/whoigit/ifcb-flow-metric:feature-isolation"
     
     # Pull the latest image
     pull_images([ifcb_image])
