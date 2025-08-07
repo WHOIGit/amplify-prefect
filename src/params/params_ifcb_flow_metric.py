@@ -44,8 +44,7 @@ class IFCBFeatureConfig(BaseModel):
     use_total_edge_fraction: bool = Field(True, description="Use total fraction of points near any frame edge feature")
     
     # Temporal Features
-    use_second_t_value: bool = Field(True, description="Use second timestamp value feature")
-    use_t_var: bool = Field(True, description="Use variance of timestamp differences feature")
+    use_t_y_var: bool = Field(True, description="Use variance of rolling mean of y-coordinates feature")
 
 # Parameters relevant to IFCB flow metric training
 class IFCBTrainingParams(BaseModel):

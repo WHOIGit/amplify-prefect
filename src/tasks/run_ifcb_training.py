@@ -52,8 +52,7 @@ def generate_feature_config_yaml(params: IFCBTrainingParams) -> str:
             'total_edge_fraction': feature_config.use_total_edge_fraction,
         },
         'temporal': {
-            'second_t_value': feature_config.use_second_t_value,
-            't_var': feature_config.use_t_var,
+            't_y_var': feature_config.use_t_y_var,
         }
     }
     
