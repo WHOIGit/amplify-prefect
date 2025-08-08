@@ -1,5 +1,11 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Union
+from enum import Enum
+
+
+class BinType(str, Enum):
+    I_BINS = "I"
+    D_BINS = "D"
 
 
 # Feature selection configuration for IFCB flow metric training
@@ -58,6 +64,7 @@ class IFCBTrainingParams(BaseModel):
     model_filename: str = Field("classifier.pkl", description="Filename for the trained model")
     max_samples: Union[int, float, str] = Field("auto", description="Number of samples to draw from X to train each base estimator")
     max_features: Union[int, float] = Field(1.0, description="Number of features to draw from X to train each base estimator")
+    bin_type: BinType = Field(..., description="Type of bins to train on: 'I' for I-bins or 'D' for D-bins")
     
     # Feature selection configuration
     feature_config: IFCBFeatureConfig = Field(default_factory=IFCBFeatureConfig, description="Feature selection configuration")

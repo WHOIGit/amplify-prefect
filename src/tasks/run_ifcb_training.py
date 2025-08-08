@@ -1,6 +1,8 @@
 from prefect import task
 import docker
 import os
+import tempfile
+import glob
 
 from prefect import get_run_logger
 
@@ -60,6 +62,37 @@ def generate_feature_config_yaml(params: IFCBTrainingParams) -> str:
     return yaml.dump(config)
 
 
+def create_bin_type_id_file(data_dir: str, bin_type: str) -> str:
+    """Create a temporary ID file containing only bins of the specified type (I or D)."""
+    # Find all .adc files in the data directory
+    adc_files = glob.glob(os.path.join(data_dir, "*.adc"))
+    
+    # Extract PIDs and filter by bin type
+    filtered_pids = []
+    for adc_file in adc_files:
+        filename = os.path.basename(adc_file)
+        pid = os.path.splitext(filename)[0]  # Remove .adc extension
+        
+        if pid.startswith(bin_type):
+            filtered_pids.append(pid)
+    
+    if not filtered_pids:
+        raise ValueError(f"No {bin_type}-bins found in directory {data_dir}")
+    
+    # Create temporary ID file
+    temp_fd, temp_path = tempfile.mkstemp(suffix='.txt', prefix=f'{bin_type}_bins_')
+    try:
+        with os.fdopen(temp_fd, 'w') as f:
+            for pid in filtered_pids:
+                f.write(f"{pid}\n")
+    except:
+        os.unlink(temp_path)
+        raise
+    
+    print(f"Created ID file for {len(filtered_pids)} {bin_type}-bins: {temp_path}")
+    return temp_path
+
+
 @task(on_completion=[on_task_complete], log_prints=True)
 def run_ifcb_training(ifcb_training_params: IFCBTrainingParams, ifcb_image: str):
     """
@@ -75,11 +108,21 @@ def run_ifcb_training(ifcb_training_params: IFCBTrainingParams, ifcb_image: str)
         ifcb_training_params.output_dir: {'bind': '/app/output', 'mode': 'rw'}
     }
     
-    # Mount id_file if provided
+    # Create ID file based on bin type selection or use provided ID file
     id_file_container_path = None
+    temp_id_file = None
+    
     if ifcb_training_params.id_file is not None:
+        # User provided their own ID file
         id_file_container_path = '/app/ids.txt'
         volumes[ifcb_training_params.id_file] = {'bind': id_file_container_path, 'mode': 'ro'}
+        logger.info(f'Using provided ID file: {ifcb_training_params.id_file}')
+    else:
+        # Create ID file based on bin type selection
+        logger.info(f'Creating ID file for {ifcb_training_params.bin_type.value}-bins')
+        temp_id_file = create_bin_type_id_file(ifcb_training_params.data_dir, ifcb_training_params.bin_type.value)
+        id_file_container_path = '/app/ids.txt'
+        volumes[temp_id_file] = {'bind': id_file_container_path, 'mode': 'ro'}
     
     # Build command arguments
     command_args = [
@@ -94,9 +137,8 @@ def run_ifcb_training(ifcb_training_params: IFCBTrainingParams, ifcb_image: str)
         "--model", f"/app/output/{ifcb_training_params.model_filename}"
     ]
     
-    # Add optional id-file flag if provided
-    if ifcb_training_params.id_file is not None:
-        command_args.extend(["--id-file", id_file_container_path])
+    # Add id-file flag (always present now, either user-provided or generated)
+    command_args.extend(["--id-file", id_file_container_path])
     
     # Generate and add feature configuration
     feature_config_yaml = generate_feature_config_yaml(ifcb_training_params)
@@ -126,3 +168,8 @@ def run_ifcb_training(ifcb_training_params: IFCBTrainingParams, ifcb_image: str)
     except Exception as e:
         logger.error(f"Unexpected error running container: {str(e)}")
         raise
+    finally:
+        # Clean up temporary ID file if created
+        if temp_id_file and os.path.exists(temp_id_file):
+            os.unlink(temp_id_file)
+            logger.info(f"Cleaned up temporary ID file: {temp_id_file}")
