@@ -65,7 +65,7 @@ def generate_feature_config_yaml(params: IFCBTrainingParams) -> str:
 def create_bin_type_id_file(data_dir: str, bin_type: str) -> str:
     """Create a temporary ID file containing only bins of the specified type (I or D)."""
     # Find all .adc files in the data directory
-    adc_files = glob.glob(os.path.join(data_dir, "*.adc"))
+    adc_files = glob.glob(os.path.join(data_dir, "**", "*.adc"), recursive=True)
     
     # Extract PIDs and filter by bin type
     filtered_pids = []
