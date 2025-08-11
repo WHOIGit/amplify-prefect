@@ -48,10 +48,15 @@ def run_ifcb_flow_metric_inference(ifcb_inference_params: IFCBInferenceParams, i
     logger.info(f'Running container with command: {" ".join(command_args)}')
     
     try:
+        # Get current user's UID and GID to ensure output files are owned by the user
+        uid = os.getuid()
+        gid = os.getgid()
+        
         container = client.containers.run(
             ifcb_image,
             command_args,
             volumes=volumes,
+            user=f"{uid}:{gid}",
             remove=True,
             detach=False,
             stdout=True,
