@@ -1,13 +1,12 @@
 from prefect import task
 import docker
 import os
-import tempfile
-import glob
 
 from prefect import get_run_logger
 
 from src.prov import on_task_complete
 from src.params.params_ifcb_flow_metric import IFCBTrainingParams
+from src.utils.bin_utils import create_bin_type_id_file
 
 
 def generate_feature_config_yaml(params: IFCBTrainingParams) -> str:
@@ -62,35 +61,6 @@ def generate_feature_config_yaml(params: IFCBTrainingParams) -> str:
     return yaml.dump(config)
 
 
-def create_bin_type_id_file(data_dir: str, bin_type: str) -> str:
-    """Create a temporary ID file containing only bins of the specified type (I or D)."""
-    # Find all .adc files in the data directory
-    adc_files = glob.glob(os.path.join(data_dir, "**", "*.adc"), recursive=True)
-    
-    # Extract PIDs and filter by bin type
-    filtered_pids = []
-    for adc_file in adc_files:
-        filename = os.path.basename(adc_file)
-        pid = os.path.splitext(filename)[0]  # Remove .adc extension
-        
-        if pid.startswith(bin_type):
-            filtered_pids.append(pid)
-    
-    if not filtered_pids:
-        raise ValueError(f"No {bin_type}-bins found in directory {data_dir}")
-    
-    # Create temporary ID file
-    temp_fd, temp_path = tempfile.mkstemp(suffix='.txt', prefix=f'{bin_type}_bins_')
-    try:
-        with os.fdopen(temp_fd, 'w') as f:
-            for pid in filtered_pids:
-                f.write(f"{pid}\n")
-    except:
-        os.unlink(temp_path)
-        raise
-    
-    print(f"Created ID file for {len(filtered_pids)} {bin_type}-bins: {temp_path}")
-    return temp_path
 
 
 @task(on_completion=[on_task_complete], log_prints=True)
@@ -120,7 +90,10 @@ def run_ifcb_training(ifcb_training_params: IFCBTrainingParams, ifcb_image: str)
     else:
         # Create ID file based on bin type selection
         logger.info(f'Creating ID file for {ifcb_training_params.bin_type.value}-bins')
-        temp_id_file = create_bin_type_id_file(ifcb_training_params.data_dir, ifcb_training_params.bin_type.value)
+        temp_id_file, num_bins = create_bin_type_id_file(ifcb_training_params.data_dir, ifcb_training_params.bin_type.value)
+        if temp_id_file is None:
+            raise ValueError(f"No {ifcb_training_params.bin_type.value}-bins found in directory {ifcb_training_params.data_dir}")
+        logger.info(f'Created ID file for {num_bins} {ifcb_training_params.bin_type.value}-bins: {temp_id_file}')
         id_file_container_path = '/app/ids.txt'
         volumes[temp_id_file] = {'bind': id_file_container_path, 'mode': 'ro'}
     

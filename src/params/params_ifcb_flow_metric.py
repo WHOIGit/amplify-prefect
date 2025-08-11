@@ -97,7 +97,8 @@ class IFCBEvaluationParams(BaseModel):
 class IFCBFullEvaluationParams(BaseModel):
     bad_data_dir: str = Field(..., description="Directory containing subdirectories of known bad IFCB data")
     normal_data_dir: str = Field(..., description="Directory containing normal/unknown IFCB bin data")
-    model_path: str = Field(..., description="Path to the trained IFCB model file")
+    i_model_path: str = Field(..., description="Path to the trained IFCB model file for I bins")
+    d_model_path: str = Field(..., description="Path to the trained IFCB model file for D bins")
     output_dir: str = Field(..., description="Directory where all evaluation outputs will be saved")
     
     # Optional parameters for inference
