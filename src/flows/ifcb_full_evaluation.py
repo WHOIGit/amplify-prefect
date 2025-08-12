@@ -22,6 +22,10 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
        - Creates violin plot comparing the two distributions
     """
     
+    # Create output directory if it doesn't exist
+    os.makedirs(ifcb_full_evaluation_params.output_dir, exist_ok=True)
+    print(f"Output directory: {ifcb_full_evaluation_params.output_dir}")
+    
     # Define the Docker image
     ifcb_image = "ghcr.io/whoigit/ifcb-flow-metric:main"
     
