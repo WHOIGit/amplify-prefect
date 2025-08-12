@@ -95,8 +95,9 @@ class IFCBEvaluationParams(BaseModel):
 
 # Parameters for full IFCB flow metric evaluation (bad vs normal data)
 class IFCBFullEvaluationParams(BaseModel):
-    bad_data_dir: str = Field(..., description="Directory containing subdirectories of known bad IFCB data")
-    normal_data_dir: str = Field(..., description="Directory containing normal/unknown IFCB bin data")
+    bad_i_data_dir: str = Field(..., description="Directory containing subdirectories of known bad I bin data")
+    bad_d_data_dir: str = Field(..., description="Directory containing subdirectories of known bad D bin data")
+    normal_data_dir: str = Field(..., description="Directory containing normal/unknown IFCB bin data (mixed I and D)")
     i_model_path: str = Field(..., description="Path to the trained IFCB model file for I bins")
     d_model_path: str = Field(..., description="Path to the trained IFCB model file for D bins")
     output_dir: str = Field(..., description="Directory where all evaluation outputs will be saved")
