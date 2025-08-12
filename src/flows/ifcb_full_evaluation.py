@@ -1,4 +1,4 @@
-from prefect import flow
+from prefect import flow, get_run_logger
 import os
 
 from src.params.params_ifcb_flow_metric import IFCBFullEvaluationParams, IFCBInferenceParams, IFCBEvaluationParams
@@ -9,7 +9,7 @@ from src.tasks.merge_csv_files import merge_csv_files
 from src.utils.bin_utils import create_bin_type_id_file
 
 
-@flow(name="IFCB Flow Metric Full Evaluation")
+@flow(name="IFCB Flow Metric Full Evaluation", log_prints=True)
 def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationParams):
     """
     Flow for full IFCB flow metric evaluation comparing known bad vs normal data.
@@ -22,9 +22,11 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
        - Creates violin plot comparing the two distributions
     """
     
+    logger = get_run_logger()
+    
     # Create output directory if it doesn't exist
     os.makedirs(ifcb_full_evaluation_params.output_dir, exist_ok=True)
-    print(f"Output directory: {ifcb_full_evaluation_params.output_dir}")
+    logger.info(f"Output directory: {ifcb_full_evaluation_params.output_dir}")
     
     # Define the Docker image
     ifcb_image = "ghcr.io/whoigit/ifcb-flow-metric:main"
@@ -36,24 +38,24 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
     bad_subdirs = [d for d in os.listdir(ifcb_full_evaluation_params.bad_data_dir) 
                    if os.path.isdir(os.path.join(ifcb_full_evaluation_params.bad_data_dir, d))]
     
-    print(f"Found {len(bad_subdirs)} bad data subdirectories: {bad_subdirs}")
+    logger.info(f"Found {len(bad_subdirs)} bad data subdirectories: {bad_subdirs}")
     
     # Run inference on normal data with separate I and D models
     normal_i_csv_path = os.path.join(ifcb_full_evaluation_params.output_dir, "normal_data_i_bins_scores.csv")
     normal_d_csv_path = os.path.join(ifcb_full_evaluation_params.output_dir, "normal_data_d_bins_scores.csv")
     
-    print("Running inference on normal data with separate I and D models...")
+    logger.info("Running inference on normal data with separate I and D models...")
     
     # Create temporary ID files for I and D bins
     temp_i_file, normal_i_bins = create_bin_type_id_file(ifcb_full_evaluation_params.normal_data_dir, "I")
     temp_d_file, normal_d_bins = create_bin_type_id_file(ifcb_full_evaluation_params.normal_data_dir, "D")
     
-    print(f"Found {normal_i_bins} I bins and {normal_d_bins} D bins in normal data")
+    logger.info(f"Found {normal_i_bins} I bins and {normal_d_bins} D bins in normal data")
     
     try:
         # Run inference on I bins if any exist
         if normal_i_bins > 0:
-            print(f"Processing {normal_i_bins} normal I bins with I model...")
+            logger.info(f"Processing {normal_i_bins} normal I bins with I model...")
             normal_i_inference_params = IFCBInferenceParams(
                 data_dir=ifcb_full_evaluation_params.normal_data_dir,
                 output_dir=ifcb_full_evaluation_params.output_dir,
@@ -68,7 +70,7 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
         
         # Run inference on D bins if any exist
         if normal_d_bins > 0:
-            print(f"Processing {normal_d_bins} normal D bins with D model...")
+            logger.info(f"Processing {normal_d_bins} normal D bins with D model...")
             normal_d_inference_params = IFCBInferenceParams(
                 data_dir=ifcb_full_evaluation_params.normal_data_dir,
                 output_dir=ifcb_full_evaluation_params.output_dir,
@@ -88,11 +90,11 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
         if temp_d_file and os.path.exists(temp_d_file):
             os.unlink(temp_d_file)
     
-    print(f"Normal data inference completed: {normal_i_bins} I bins, {normal_d_bins} D bins")
+    logger.info(f"Normal data inference completed: {normal_i_bins} I bins, {normal_d_bins} D bins")
     
     # Process each bad data subdirectory
     for subdir_name in bad_subdirs:
-        print(f"Processing bad data subdirectory: {subdir_name}")
+        logger.info(f"Processing bad data subdirectory: {subdir_name}")
         
         subdir_path = os.path.join(ifcb_full_evaluation_params.bad_data_dir, subdir_name)
         
@@ -102,18 +104,18 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
         bad_i_csv_path = os.path.join(ifcb_full_evaluation_params.output_dir, bad_i_csv_filename)
         bad_d_csv_path = os.path.join(ifcb_full_evaluation_params.output_dir, bad_d_csv_filename)
         
-        print(f"Running inference on {subdir_name} with separate I and D models...")
+        logger.info(f"Running inference on {subdir_name} with separate I and D models...")
         
         # Create temporary ID files for I and D bins
         temp_i_file, bad_i_bins = create_bin_type_id_file(subdir_path, "I")
         temp_d_file, bad_d_bins = create_bin_type_id_file(subdir_path, "D")
         
-        print(f"Found {bad_i_bins} I bins and {bad_d_bins} D bins in {subdir_name}")
+        logger.info(f"Found {bad_i_bins} I bins and {bad_d_bins} D bins in {subdir_name}")
         
         try:
             # Run inference on I bins if any exist
             if bad_i_bins > 0:
-                print(f"Processing {bad_i_bins} bad I bins with I model...")
+                logger.info(f"Processing {bad_i_bins} bad I bins with I model...")
                 bad_i_inference_params = IFCBInferenceParams(
                     data_dir=subdir_path,
                     output_dir=ifcb_full_evaluation_params.output_dir,
@@ -128,7 +130,7 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
             
             # Run inference on D bins if any exist
             if bad_d_bins > 0:
-                print(f"Processing {bad_d_bins} bad D bins with D model...")
+                logger.info(f"Processing {bad_d_bins} bad D bins with D model...")
                 bad_d_inference_params = IFCBInferenceParams(
                     data_dir=subdir_path,
                     output_dir=ifcb_full_evaluation_params.output_dir,
@@ -148,7 +150,7 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
             if temp_d_file and os.path.exists(temp_d_file):
                 os.unlink(temp_d_file)
         
-        print(f"{subdir_name} inference completed: {bad_i_bins} I bins, {bad_d_bins} D bins")
+        logger.info(f"{subdir_name} inference completed: {bad_i_bins} I bins, {bad_d_bins} D bins")
         
         # Create evaluation plots: separate I bins, D bins, and merged plots
         normal_data_clean = ifcb_full_evaluation_params.normal_data_name.replace(' ', '_').lower()
@@ -169,7 +171,7 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
             )
             
             run_ifcb_flow_metric_evaluation(i_evaluation_params, ifcb_image)
-            print(f"Created I bins evaluation plot: {i_plot_filename}")
+            logger.info(f"Created I bins evaluation plot: {i_plot_filename}")
         
         # 2. D bins only evaluation (if both datasets have D bins)
         if bad_d_bins > 0 and normal_d_bins > 0:
@@ -187,7 +189,7 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
             )
             
             run_ifcb_flow_metric_evaluation(d_evaluation_params, ifcb_image)
-            print(f"Created D bins evaluation plot: {d_plot_filename}")
+            logger.info(f"Created D bins evaluation plot: {d_plot_filename}")
         
         # 3. Merged evaluation (combining I and D bins)
         if (bad_i_bins > 0 or bad_d_bins > 0) and (normal_i_bins > 0 or normal_d_bins > 0):
@@ -226,11 +228,11 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
             )
             
             run_ifcb_flow_metric_evaluation(merged_evaluation_params, ifcb_image)
-            print(f"Created merged evaluation plot: {merged_plot_filename}")
+            logger.info(f"Created merged evaluation plot: {merged_plot_filename}")
         
-        print(f"Completed evaluation for {subdir_name}")
+        logger.info(f"Completed evaluation for {subdir_name}")
     
-    print(f"Full evaluation completed for {len(bad_subdirs)} bad data categories")
+    logger.info(f"Full evaluation completed for {len(bad_subdirs)} bad data categories")
 
 
 if __name__ == "__main__":
