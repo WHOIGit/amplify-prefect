@@ -26,7 +26,7 @@ def extract_slim_features_flow(extract_features_params: ExtractSlimFeaturesParam
     logger.info(f"Output directory: {extract_features_params.output_directory}")
     
     # Define the Docker image (leave blank for now as requested)
-    extract_features_image = "ghcr.io/whoigit/ifcb-features:latest"
+    extract_features_image = "ghcr.io/whoigit/ifcb-features:docker"
     
     # Pull the latest image if specified
     if extract_features_image:
