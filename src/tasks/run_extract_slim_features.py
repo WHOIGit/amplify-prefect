@@ -23,9 +23,8 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
         extract_features_params.output_directory: {'bind': '/app/output', 'mode': 'rw'}
     }
     
-    # Build command arguments
+    # Build command arguments (ENTRYPOINT already includes "python extract_slim_features.py")
     command_args = [
-        "python", "extract_slim_features.py",
         "/app/data",
         "/app/output"
     ]
