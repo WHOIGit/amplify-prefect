@@ -44,7 +44,7 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
         f"models/{model_filename}",
         "inputs"
     ]
-    
+
     # Add optional flags only if they are specified
     if onnx_inference_params.batch is not None:
         command_args.extend(["--batch", str(onnx_inference_params.batch)])
@@ -52,6 +52,10 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
         command_args.extend(["--classes", classes_container_path])
     if onnx_inference_params.outfile is not None:
         command_args.extend(["--outfile", onnx_inference_params.outfile])
+
+    # Add subfolder type toggle
+    command_args.extend(["--subfolder-type", onnx_inference_params.subfolder_type])
+
     if onnx_inference_params.force_notorch is not None and onnx_inference_params.force_notorch:
         command_args.append("--force-notorch")
     
