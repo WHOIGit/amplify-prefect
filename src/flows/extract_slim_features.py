@@ -10,13 +10,13 @@ from src.tasks.run_extract_slim_features import run_extract_slim_features
 def extract_slim_features_flow(extract_features_params: ExtractSlimFeaturesParams):
     """
     Flow for extracting slim features from IFCB data.
-    
+
     This flow:
-    1. Creates the output directory if it doesn't exist
+    1. Creates the output directory if it doesn't exist (for local storage modes)
     2. Pulls the latest Docker image for feature extraction
-    3. Runs extract_slim_features.py in a Docker container
-    4. Extracts features and saves them as CSV files
-    5. Saves blob images as ZIP files
+    3. Runs extract_slim_features.py in a Docker container with AWS credentials
+    4. Extracts features and saves to VastDB (default) or local CSV
+    5. Saves blob images to S3 (default) or local ZIP files
     """
     
     logger = get_run_logger()
@@ -25,8 +25,8 @@ def extract_slim_features_flow(extract_features_params: ExtractSlimFeaturesParam
     os.makedirs(extract_features_params.output_directory, exist_ok=True)
     logger.info(f"Output directory: {extract_features_params.output_directory}")
     
-    # Define the Docker image (leave blank for now as requested)
-    extract_features_image = "ghcr.io/whoigit/ifcb-features:pr-6"
+    # Define the Docker image
+    extract_features_image = "ghcr.io/whoigit/ifcb-features:pr-7"
     
     # Pull the latest image if specified
     if extract_features_image:
