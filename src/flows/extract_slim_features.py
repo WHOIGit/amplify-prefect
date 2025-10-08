@@ -24,15 +24,10 @@ def extract_slim_features_flow(extract_features_params: ExtractSlimFeaturesParam
     # Create output directory if it doesn't exist
     os.makedirs(extract_features_params.output_directory, exist_ok=True)
     logger.info(f"Output directory: {extract_features_params.output_directory}")
-    
-    # Define the Docker image
-    extract_features_image = "ghcr.io/whoigit/ifcb-features:pr-7"
-    
-    # Pull the latest image if specified
-    if extract_features_image:
-        pull_images([extract_features_image])
-    else:
-        logger.warning("No Docker image specified - skipping image pull")
+
+    # Pull the latest image
+    logger.info(f"Using Docker image: {extract_features_params.extract_features_image}")
+    pull_images([extract_features_params.extract_features_image])
     
     # Log processing details
     if extract_features_params.bins:
@@ -43,7 +38,7 @@ def extract_slim_features_flow(extract_features_params: ExtractSlimFeaturesParam
     logger.info(f"Data directory: {extract_features_params.data_directory}")
     
     # Run feature extraction
-    run_extract_slim_features(extract_features_params, extract_features_image)
+    run_extract_slim_features(extract_features_params)
     
     logger.info("Feature extraction completed successfully")
 

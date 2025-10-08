@@ -10,7 +10,7 @@ from src.params.params_extract_slim_features import ExtractSlimFeaturesParams
 
 
 @task(on_completion=[on_task_complete], log_prints=True)
-def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams, extract_features_image: str):
+def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams):
     """
     Run extract_slim_features.py in a Docker container to extract IFCB features.
     """
@@ -69,7 +69,34 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
     if extract_features_params.bins is not None and len(extract_features_params.bins) > 0:
         command_args.extend(["--bins"] + extract_features_params.bins)
 
+    # Add GPU batch processing arguments if enabled
+    if extract_features_params.batch_processing:
+        command_args.extend([
+            "--batch-processing",
+            "--min-batch-size", str(extract_features_params.min_batch_size),
+            "--max-batch-size", str(extract_features_params.max_batch_size)
+        ])
+        if extract_features_params.gpu_device is not None:
+            command_args.extend(["--gpu-device", str(extract_features_params.gpu_device)])
+
     logger.info(f'Running container with command: {" ".join(command_args)}')
+
+    # Configure GPU device requests if batch processing is enabled
+    device_requests = []
+    if extract_features_params.batch_processing:
+        if extract_features_params.gpu_device is not None:
+            # Request specific GPU device
+            device_requests = [docker.types.DeviceRequest(
+                device_ids=[str(extract_features_params.gpu_device)],
+                capabilities=[["gpu"]]
+            )]
+        else:
+            # Request all available GPUs
+            device_requests = [docker.types.DeviceRequest(
+                device_ids=["all"],
+                capabilities=[["gpu"]]
+            )]
+        logger.info(f"GPU device requests configured: {device_requests}")
 
     try:
         # Get current user's UID and GID to ensure output files are owned by the user
@@ -77,11 +104,12 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
         gid = os.getgid()
 
         container = client.containers.run(
-            extract_features_image,
+            extract_features_params.extract_features_image,
             command_args,
             volumes=volumes,
             environment=environment,
             user=f"{uid}:{gid}",
+            device_requests=device_requests if device_requests else None,
             remove=True,
             detach=False,
             stdout=True,
