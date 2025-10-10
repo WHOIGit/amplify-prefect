@@ -31,6 +31,7 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
     environment = {
         'AWS_ACCESS_KEY_ID': aws_credentials.aws_access_key_id,
         'AWS_SECRET_ACCESS_KEY': aws_credentials.aws_secret_access_key.get_secret_value(),
+        'PYTHONUNBUFFERED': '1',  # Disable Python output buffering for real-time logs
     }
 
     # Build command arguments (ENTRYPOINT already includes "python extract_slim_features.py")
