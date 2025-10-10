@@ -104,6 +104,7 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
         uid = os.getuid()
         gid = os.getgid()
 
+        # Run container in detached mode to stream logs properly
         container = client.containers.run(
             extract_features_params.extract_features_image,
             command_args,
@@ -111,16 +112,27 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
             environment=environment,
             user=f"{uid}:{gid}",
             device_requests=device_requests if device_requests else None,
-            remove=True,
-            detach=False,
-            stdout=True,
-            stderr=True,
-            stream=True
+            detach=True  # Run detached and stream logs separately
         )
-        
-        # Stream output
-        for line in container:
-            logger.info(line.decode('utf-8').rstrip())
+
+        # Stream logs in real-time
+        try:
+            for log_line in container.logs(stream=True, follow=True):
+                logger.info(log_line.decode('utf-8').rstrip())
+
+            # Wait for container to finish
+            result = container.wait()
+            exit_code = result['StatusCode']
+
+            if exit_code != 0:
+                raise RuntimeError(f"Docker container failed with exit code {exit_code}")
+
+        finally:
+            # Clean up container
+            try:
+                container.remove()
+            except:
+                pass
             
     except docker.errors.ContainerError as e:
         logger.error(f"Container failed with stderr: {e.stderr.decode('utf-8') if e.stderr else 'No stderr'}")
