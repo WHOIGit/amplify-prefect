@@ -4,9 +4,10 @@ import os
 import json
 import pandas as pd
 from pathlib import Path
+import base64
 
 from prefect import get_run_logger
-from prefect.artifacts import create_markdown_artifact, create_table_artifact, create_image_artifact
+from prefect.artifacts import create_markdown_artifact, create_table_artifact
 from prefect_aws import AwsCredentials
 
 from src.prov import on_task_complete
@@ -163,25 +164,38 @@ def run_blob_comparison(validation_params: FeatureValidationParams):
                 description="Top 10 Best Blob Matches by IoU"
             )
 
-        # Create image artifacts for worst cases
+        # Create markdown artifact with embedded images for worst cases
         comparison_images_dir = os.path.join(blob_output_dir, "blob_comparisons")
         if os.path.exists(comparison_images_dir):
-            image_files = sorted(Path(comparison_images_dir).glob("*.png"))
+            image_files = sorted(Path(comparison_images_dir).glob("*.png"))[:validation_params.blob_top_n_worst]
 
-            for idx, image_path in enumerate(image_files[:validation_params.blob_top_n_worst]):
-                # Extract info from filename: {sample_id}_{roi_number:05d}_iou{iou:.3f}.png
-                filename = image_path.stem
-                parts = filename.rsplit('_iou', 1)
-                sample_roi = parts[0] if len(parts) > 0 else filename
-                iou_str = parts[1] if len(parts) > 1 else "unknown"
+            if image_files:
+                markdown_images = "# Blob Comparison Visualizations\n\n"
+                markdown_images += "Showing worst matches (lowest IoU scores)\n\n"
 
-                # Use file:// URL for local images
-                image_url = f"file://{image_path.absolute()}"
+                for idx, image_path in enumerate(image_files):
+                    # Extract info from filename: {sample_id}_{roi_number:05d}_iou{iou:.3f}.png
+                    filename = image_path.stem
+                    parts = filename.rsplit('_iou', 1)
+                    sample_roi = parts[0] if len(parts) > 0 else filename
+                    iou_str = parts[1] if len(parts) > 1 else "unknown"
 
-                create_image_artifact(
-                    image_url=image_url,
-                    key=f"blob-comparison-{idx+1}",
-                    description=f"Blob comparison: {sample_roi} (IoU={iou_str})"
+                    # Read and encode image as base64
+                    with open(image_path, 'rb') as f:
+                        image_data = f.read()
+
+                    image_base64 = base64.b64encode(image_data).decode('utf-8')
+
+                    # Add to markdown
+                    markdown_images += f"## {idx+1}. {sample_roi} (IoU={iou_str})\n\n"
+                    markdown_images += f"![Blob comparison]({image_path.name})\n\n"
+                    markdown_images += f'<img src="data:image/png;base64,{image_base64}" alt="{sample_roi}" style="max-width: 100%;"/>\n\n'
+                    markdown_images += "---\n\n"
+
+                create_markdown_artifact(
+                    key="blob-comparison-images",
+                    markdown=markdown_images,
+                    description=f"Top {len(image_files)} worst blob matches with visualizations"
                 )
 
         logger.info(f"✓ Created Prefect artifacts with blob comparison results")
