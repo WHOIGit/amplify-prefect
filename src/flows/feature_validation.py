@@ -5,6 +5,7 @@ from src.params.params_feature_validation import FeatureValidationParams
 from src.tasks.pull_images import pull_images
 from src.tasks.run_feature_validation import run_feature_validation
 from src.tasks.run_blob_comparison import run_blob_comparison
+from src.tasks.create_combined_validation_report import create_combined_validation_report
 
 
 @flow(name="IFCB Feature Validation", log_prints=True)
@@ -17,7 +18,7 @@ def feature_validation_flow(validation_params: FeatureValidationParams):
     2. Pulls the latest Docker image for validation
     3. Runs validation comparing predicted vs ground truth features from VastDB
     4. Optionally runs pixel-by-pixel blob comparison
-    5. Creates Prefect artifacts with validation results and metrics
+    5. Creates a comprehensive validation report combining all results
     """
 
     logger = get_run_logger()
@@ -49,6 +50,10 @@ def feature_validation_flow(validation_params: FeatureValidationParams):
         logger.info("Starting blob comparison...")
         run_blob_comparison(validation_params)
         logger.info("✓ Blob comparison completed successfully")
+
+    # Create comprehensive combined report
+    logger.info("Creating comprehensive validation report...")
+    create_combined_validation_report(validation_params)
 
     logger.info("✓ All validation tasks completed successfully")
 

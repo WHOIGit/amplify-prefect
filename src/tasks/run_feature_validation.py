@@ -1,11 +1,8 @@
 from prefect import task
 import docker
 import os
-import json
-import pandas as pd
 
 from prefect import get_run_logger
-from prefect.artifacts import create_markdown_artifact, create_table_artifact
 from prefect_aws import AwsCredentials
 
 from src.prov import on_task_complete
@@ -88,67 +85,6 @@ def run_feature_validation(validation_params: FeatureValidationParams):
             logger.info(line.decode('utf-8').rstrip())
 
         logger.info("✓ Validation completed successfully")
-
-        # Read results and create Prefect artifacts
-        local_output_path = os.path.join(validation_params.output_directory, validation_params.output_filename)
-        local_summary_path = os.path.join(validation_params.output_directory, validation_params.summary_filename)
-
-        # Create summary markdown artifact
-        if os.path.exists(local_summary_path):
-            with open(local_summary_path, 'r') as f:
-                summary = json.load(f)
-
-            markdown_content = f"""# IFCB Feature Validation Summary
-
-## Overall Statistics
-- **Total features compared**: {summary['total_features']}
-- **Mean RMSE**: {summary['mean_rmse']:.4f}
-- **Median RMSE**: {summary['median_rmse']:.4f}
-- **Mean MAE**: {summary['mean_mae']:.4f}
-- **Median MAE**: {summary['median_mae']:.4f}
-- **Mean R²**: {summary['mean_r2']:.4f}
-- **Median R²**: {summary['median_r2']:.4f}
-- **Mean Pearson correlation**: {summary['mean_pearson_r']:.4f}
-- **Median Pearson correlation**: {summary['median_pearson_r']:.4f}
-
-## Quality Metrics
-- **Features with high correlation (r > 0.9)**: {summary['features_with_high_correlation']}
-- **Features with low R² (< 0.5)**: {summary['features_with_low_r2']}
-
-## Configuration
-- **Predicted**: `{validation_params.pred_bucket}.{validation_params.pred_schema}.{validation_params.pred_table}`
-- **Ground Truth**: `{validation_params.gt_bucket}.{validation_params.gt_schema}.{validation_params.gt_table}`
-"""
-
-            create_markdown_artifact(
-                key="validation-summary",
-                markdown=markdown_content,
-                description="IFCB Feature Validation Summary"
-            )
-
-        # Create detailed metrics table artifact
-        if os.path.exists(local_output_path):
-            metrics_df = pd.read_csv(local_output_path)
-
-            # Create table showing top features by different metrics
-            top_by_r2 = metrics_df.nlargest(10, 'r2')[['feature', 'r2', 'rmse', 'mae', 'pearson_r']]
-
-            create_table_artifact(
-                key="top-features-by-r2",
-                table=top_by_r2.to_dict('records'),
-                description="Top 10 Features by R² Score"
-            )
-
-            # Create table showing worst features
-            worst_by_r2 = metrics_df.nsmallest(10, 'r2')[['feature', 'r2', 'rmse', 'mae', 'pearson_r']]
-
-            create_table_artifact(
-                key="worst-features-by-r2",
-                table=worst_by_r2.to_dict('records'),
-                description="Bottom 10 Features by R² Score"
-            )
-
-        logger.info(f"✓ Created Prefect artifacts with validation results")
 
     except docker.errors.ContainerError as e:
         logger.error(f"Container failed with stderr: {e.stderr.decode('utf-8') if e.stderr else 'No stderr'}")

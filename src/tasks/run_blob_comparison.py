@@ -1,13 +1,8 @@
 from prefect import task
 import docker
 import os
-import json
-import pandas as pd
-from pathlib import Path
-import base64
 
 from prefect import get_run_logger
-from prefect.artifacts import create_markdown_artifact, create_table_artifact
 from prefect_aws import AwsCredentials
 
 from src.prov import on_task_complete
@@ -102,103 +97,6 @@ def run_blob_comparison(validation_params: FeatureValidationParams):
                 pass
 
         logger.info("✓ Blob comparison completed successfully")
-
-        # Read results and create Prefect artifacts
-        results_file = os.path.join(blob_output_dir, "blob_comparison_results.json")
-        csv_file = os.path.join(blob_output_dir, "blob_comparison_details.csv")
-
-        # Create summary markdown artifact
-        if os.path.exists(results_file):
-            with open(results_file, 'r') as f:
-                results = json.load(f)
-
-            summary_stats = results['summary_stats']
-
-            markdown_content = f"""# IFCB Blob Comparison Summary
-
-## Overall Statistics
-- **Total blobs compared**: {summary_stats['total_blobs']}
-- **Mean IoU**: {summary_stats['mean_iou']:.4f}
-- **Median IoU**: {summary_stats['median_iou']:.4f}
-- **Std Dev IoU**: {summary_stats['std_iou']:.4f}
-- **Mean Dice coefficient**: {summary_stats['mean_dice']:.4f}
-- **Median Dice coefficient**: {summary_stats['median_dice']:.4f}
-- **Mean accuracy**: {summary_stats['mean_accuracy']:.4f}
-
-## Quality Metrics
-- **Perfect matches (IoU=1.0)**: {summary_stats['perfect_matches']} ({100*summary_stats['perfect_matches']/summary_stats['total_blobs']:.1f}%)
-- **Near-perfect matches (IoU≥0.95)**: {summary_stats['near_perfect_matches']} ({100*summary_stats['near_perfect_matches']/summary_stats['total_blobs']:.1f}%)
-- **Poor matches (IoU<0.5)**: {summary_stats['poor_matches']} ({100*summary_stats['poor_matches']/summary_stats['total_blobs']:.1f}%)
-
-## Configuration
-- **Predicted Blobs**: `s3://{validation_params.blob_pred_bucket}/{validation_params.blob_pred_prefix}`
-- **Ground Truth Blobs**: `s3://{validation_params.blob_gt_bucket}/{validation_params.blob_gt_prefix}`
-- **Visualizations**: Top {validation_params.blob_top_n_worst} worst cases shown below
-"""
-
-            create_markdown_artifact(
-                key="blob-comparison-summary",
-                markdown=markdown_content,
-                description="IFCB Blob Comparison Summary"
-            )
-
-        # Create detailed metrics table artifact
-        if os.path.exists(csv_file):
-            metrics_df = pd.read_csv(csv_file)
-
-            # Create table showing worst matches
-            worst_matches = metrics_df.nsmallest(10, 'iou')[['sample_id', 'roi_number', 'iou', 'dice', 'accuracy', 'diff_pixels']]
-
-            create_table_artifact(
-                key="worst-blob-matches",
-                table=worst_matches.to_dict('records'),
-                description="Top 10 Worst Blob Matches by IoU"
-            )
-
-            # Create table showing best matches
-            best_matches = metrics_df.nlargest(10, 'iou')[['sample_id', 'roi_number', 'iou', 'dice', 'accuracy', 'diff_pixels']]
-
-            create_table_artifact(
-                key="best-blob-matches",
-                table=best_matches.to_dict('records'),
-                description="Top 10 Best Blob Matches by IoU"
-            )
-
-        # Create markdown artifact with embedded images for worst cases
-        comparison_images_dir = os.path.join(blob_output_dir, "blob_comparisons")
-        if os.path.exists(comparison_images_dir):
-            image_files = sorted(Path(comparison_images_dir).glob("*.png"))[:validation_params.blob_top_n_worst]
-
-            if image_files:
-                markdown_images = "# Blob Comparison Visualizations\n\n"
-                markdown_images += "Showing worst matches (lowest IoU scores)\n\n"
-
-                for idx, image_path in enumerate(image_files):
-                    # Extract info from filename: {sample_id}_{roi_number:05d}_iou{iou:.3f}.png
-                    filename = image_path.stem
-                    parts = filename.rsplit('_iou', 1)
-                    sample_roi = parts[0] if len(parts) > 0 else filename
-                    iou_str = parts[1] if len(parts) > 1 else "unknown"
-
-                    # Read and encode image as base64
-                    with open(image_path, 'rb') as f:
-                        image_data = f.read()
-
-                    image_base64 = base64.b64encode(image_data).decode('utf-8')
-
-                    # Add to markdown
-                    markdown_images += f"## {idx+1}. {sample_roi} (IoU={iou_str})\n\n"
-                    markdown_images += f"![Blob comparison]({image_path.name})\n\n"
-                    markdown_images += f'<img src="data:image/png;base64,{image_base64}" alt="{sample_roi}" style="max-width: 100%;"/>\n\n'
-                    markdown_images += "---\n\n"
-
-                create_markdown_artifact(
-                    key="blob-comparison-images",
-                    markdown=markdown_images,
-                    description=f"Top {len(image_files)} worst blob matches with visualizations"
-                )
-
-        logger.info(f"✓ Created Prefect artifacts with blob comparison results")
 
     except docker.errors.ContainerError as e:
         logger.error(f"Container failed with stderr: {e.stderr.decode('utf-8') if e.stderr else 'No stderr'}")
