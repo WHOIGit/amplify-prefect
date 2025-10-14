@@ -34,3 +34,12 @@ class FeatureValidationParams(BaseModel):
 
     # Optional filters
     sample_ids: Optional[List[str]] = Field(None, description="Optional list of specific sample IDs to validate")
+
+    # Blob comparison configuration
+    enable_blob_comparison: bool = Field(False, description="Enable pixel-by-pixel blob comparison")
+    blob_pred_bucket: Optional[str] = Field(None, description="S3 bucket containing predicted blobs")
+    blob_gt_bucket: Optional[str] = Field(None, description="S3 bucket containing ground truth blobs")
+    blob_s3_url: Optional[str] = Field(None, description="S3 endpoint URL for blobs")
+    blob_pred_prefix: str = Field("ifcb-blobs-slim-features/", description="S3 prefix for predicted blobs")
+    blob_gt_prefix: str = Field("ifcb-blobs-gt/", description="S3 prefix for ground truth blobs")
+    blob_top_n_worst: int = Field(10, description="Number of worst blob matches to visualize")

@@ -44,6 +44,7 @@ def run_feature_validation(validation_params: FeatureValidationParams):
     summary_path = f"/app/output/{validation_params.summary_filename}"
 
     command_args = [
+        "validate_features.py",
         "--pred-bucket", validation_params.pred_bucket,
         "--pred-schema", validation_params.pred_schema,
         "--pred-table", validation_params.pred_table,
