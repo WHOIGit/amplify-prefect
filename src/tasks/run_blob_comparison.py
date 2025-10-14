@@ -175,12 +175,12 @@ def run_blob_comparison(validation_params: FeatureValidationParams):
                 sample_roi = parts[0] if len(parts) > 0 else filename
                 iou_str = parts[1] if len(parts) > 1 else "unknown"
 
-                with open(image_path, 'rb') as f:
-                    image_data = f.read()
+                # Use file:// URL for local images
+                image_url = f"file://{image_path.absolute()}"
 
                 create_image_artifact(
+                    image_url=image_url,
                     key=f"blob-comparison-{idx+1}",
-                    image=image_data,
                     description=f"Blob comparison: {sample_roi} (IoU={iou_str})"
                 )
 
