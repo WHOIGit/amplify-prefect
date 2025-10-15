@@ -67,28 +67,52 @@ def run_feature_validation(validation_params: FeatureValidationParams):
         uid = os.getuid()
         gid = os.getgid()
 
+        logger.info(f"Running container as user {uid}:{gid}")
+
+        # Run container in detached mode so we can stream logs and capture errors properly
         container = client.containers.run(
             validation_params.validation_image,
             command_args,
             volumes=volumes,
             environment=environment,
             user=f"{uid}:{gid}",
-            remove=True,
-            detach=False,
-            stdout=True,
-            stderr=True,
-            stream=True
+            remove=False,  # Don't auto-remove so we can get logs on failure
+            detach=True,
         )
 
-        # Stream output
-        for line in container:
-            logger.info(line.decode('utf-8').rstrip())
+        # Stream logs in real-time
+        try:
+            for line in container.logs(stream=True, follow=True):
+                logger.info(line.decode('utf-8').rstrip())
+        except Exception as log_error:
+            logger.error(f"Error streaming logs: {log_error}")
 
+        # Wait for container to finish and check exit code
+        result = container.wait()
+        exit_code = result['StatusCode']
+
+        if exit_code != 0:
+            # Get the full logs for error reporting
+            full_logs = container.logs(stdout=True, stderr=True).decode('utf-8')
+            container.remove()
+            logger.error(f"Container failed with exit code {exit_code}")
+            logger.error(f"Full container output:\n{full_logs}")
+            raise RuntimeError(f"Docker container failed with exit code {exit_code}")
+
+        # Clean up container on success
+        container.remove()
         logger.info("✓ Validation completed successfully")
 
     except docker.errors.ContainerError as e:
-        logger.error(f"Container failed with stderr: {e.stderr.decode('utf-8') if e.stderr else 'No stderr'}")
+        logger.error(f"Container failed with exit code {e.exit_status}")
+        logger.error(f"Command: {e.command}")
+        if e.stderr:
+            stderr = e.stderr.decode('utf-8') if isinstance(e.stderr, bytes) else str(e.stderr)
+            logger.error(f"Container stderr:\n{stderr}")
         raise RuntimeError(f"Docker container failed with exit code {e.exit_status}")
+    except docker.errors.APIError as e:
+        logger.error(f"Docker API error: {str(e)}")
+        raise
     except Exception as e:
         logger.error(f"Unexpected error running container: {str(e)}")
         raise
