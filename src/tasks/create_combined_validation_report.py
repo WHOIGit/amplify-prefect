@@ -32,7 +32,20 @@ def create_combined_validation_report(validation_params: FeatureValidationParams
         with open(feature_summary_file, 'r') as f:
             summary = json.load(f)
 
-        markdown_report += f"""## Overall Statistics
+        # Add data coverage section if available
+        data_coverage = ""
+        if 'num_rows_analyzed' in summary:
+            sample_list = summary.get('samples_analyzed', [])
+            data_coverage = f"""## Data Analysis Coverage
+- **Total rows analyzed**: {summary['num_rows_analyzed']:,}
+- **Unique samples analyzed**: {summary.get('num_samples_analyzed', 0)}
+- **Samples**: {', '.join(sample_list) if len(sample_list) <= 20 else ', '.join(sample_list[:20]) + f' ... and {len(sample_list)-20} more'}
+
+---
+
+"""
+
+        markdown_report += f"""{data_coverage}## Overall Statistics
 - **Total features compared**: {summary['total_features']}
 - **Mean RMSE**: {summary['mean_rmse']:.4f}
 - **Median RMSE**: {summary['median_rmse']:.4f}
@@ -110,6 +123,21 @@ def create_combined_validation_report(validation_params: FeatureValidationParams
         # Add worst/best matches table
         if os.path.exists(csv_file):
             metrics_df = pd.read_csv(csv_file)
+
+            # Add blob analysis metrics
+            num_blob_rows = len(metrics_df)
+            unique_blob_samples = metrics_df['sample_id'].nunique() if 'sample_id' in metrics_df.columns else 0
+            blob_sample_list = sorted(metrics_df['sample_id'].unique()) if 'sample_id' in metrics_df.columns else []
+
+            markdown_report += f"""## Data Analysis Coverage
+- **Total blobs analyzed**: {summary_stats['total_blobs']:,}
+- **Total rows analyzed**: {num_blob_rows:,}
+- **Unique samples analyzed**: {unique_blob_samples}
+- **Samples**: {', '.join(blob_sample_list) if len(blob_sample_list) <= 20 else ', '.join(blob_sample_list[:20]) + f' ... and {len(blob_sample_list)-20} more'}
+
+---
+
+"""
 
             worst_matches = metrics_df.nsmallest(10, 'iou')[['sample_id', 'roi_number', 'iou', 'dice', 'accuracy', 'diff_pixels']]
             best_matches = metrics_df.nlargest(10, 'iou')[['sample_id', 'roi_number', 'iou', 'dice', 'accuracy', 'diff_pixels']]
