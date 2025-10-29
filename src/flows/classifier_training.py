@@ -6,7 +6,7 @@ from prefect import flow
 
 from image_classifier_dojo.schemas import TrainingRunConfig
 
-from tasks.run_containerized_classifier_training import run_container
+from src.tasks.run_containerized_classifier_training import run_container
 
 
 @flow(log_prints=True)
