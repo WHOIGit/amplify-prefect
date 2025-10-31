@@ -13,7 +13,7 @@ class VolumeMapping(BaseModel):
     mode: Literal['ro','rw']= 'rw'
 
 @task(on_completion=[on_task_complete])
-def run_container(output_dir: str, input_volumes: List[VolumeMapping], subcommands:List[str], training_run_config: TrainingRunConfig, device_ids:List=['all']):
+def run_container(output_dir: str, input_volumes: List[VolumeMapping], subcommands:List[str], training_run_config: TrainingRunConfig, device_ids:List[str]=['all']):
     """
     Run Image Classifier Dojo in a Docker container.
     """
