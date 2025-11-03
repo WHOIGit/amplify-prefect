@@ -5,7 +5,7 @@ from typing import Literal, List
 
 from prefect import flow
 
-from image_classifier_dojo.schemas import TrainingRunConfig
+from dojo.schemas import TrainingRunConfig
 
 from src.tasks.run_containerized_classifier_training import run_container, VolumeMapping
 

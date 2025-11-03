@@ -35,7 +35,7 @@ def run_container(output_dir: str, input_volumes: List[VolumeMapping], subcomman
               f"--runtime {training_run_config.runtime.model_dump_json()} "
     try:
         container = client.containers.run(
-            'harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.1',
+            'harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.2',
             command,
             shm_size='8g',
             volumes=volumes,
