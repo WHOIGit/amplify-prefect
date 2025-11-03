@@ -2,15 +2,15 @@ from typing import Literal, List
 
 from prefect import task, get_run_logger
 import docker
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from prov import on_task_complete
-from image_classifier_dojo.schemas import TrainingRunConfig
+from dojo.schemas import TrainingRunConfig
 
 class VolumeMapping(BaseModel):
-    host_path: str
-    container_path: str
-    mode: Literal['ro','rw']= 'rw'
+    host_path: str = Field(..., description="Path on the host machine")
+    container_path: str = Field(..., description="Path inside the container")
+    mode: Literal['ro','rw']= Field('rw', description="Mount mode: read-only ('ro') or read-write ('rw')")
 
 @task(on_completion=[on_task_complete])
 def run_container(output_dir: str, input_volumes: List[VolumeMapping], subcommands:List[str], training_run_config: TrainingRunConfig, device_ids:List[str]=['all']):
@@ -35,7 +35,7 @@ def run_container(output_dir: str, input_volumes: List[VolumeMapping], subcomman
               f"--runtime {training_run_config.runtime.model_dump_json()} "
     try:
         container = client.containers.run(
-            'harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.0',
+            'harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.1',
             command,
             shm_size='8g',
             volumes=volumes,
