@@ -29,7 +29,7 @@ RUN apt upgrade --no-install-recommends -y openssl tar
 WORKDIR /ultralytics
 
 # Clone the specific branch from GitHub
-RUN git clone --branch v8.3.148 --depth 1 https://github.com/ultralytics/ultralytics.git . && \
+RUN git clone --branch v8.3.225 --depth 1 https://github.com/ultralytics/ultralytics.git . && \
     git config --global --add safe.directory /ultralytics
 
 # Install pip packages
