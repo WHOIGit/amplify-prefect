@@ -1,7 +1,7 @@
 from prefect import task
 import docker
 
-from prov import on_task_complete
+from src.prov import on_task_complete
 
 @task(on_completion=[on_task_complete])
 def run_containerized_yolo(data_dir, output_dir, model_name, epochs, gpus):
