@@ -24,7 +24,7 @@ class InfrastructureParams(BaseModel):
 
 
 class YOLOTrainParams(BaseModel):
-    data_dir: str = Field(..., description="Directory containing training dataset with data.yaml")
+    data_dir: str = Field(..., description="Directory containing training dataset with dataset.yaml")
     output_dir: str = Field(..., description="Directory where training results will be saved")
     model_name: str = Field(..., description="Name of the YOLO model to train")
     epochs: int = Field(..., description="Number of training epochs")
