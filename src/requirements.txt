@@ -45,7 +45,7 @@ httpx==0.28.1
 humanize==4.12.2
 hyperframe==6.1.0
 idna==3.10
-image_classifier_dojo @ git+https://github.com/WHOIGit/image-classifier-dojo.git@v0.2.0
+image_classifier_dojo @ git+https://github.com/WHOIGit/image-classifier-dojo.git@v0.2.2
 importlib_metadata==8.6.1
 Jinja2==3.1.6
 jinja2-humanize-extension==0.4.0
