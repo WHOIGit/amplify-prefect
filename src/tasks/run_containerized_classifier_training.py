@@ -1,11 +1,19 @@
+from typing import Literal, List
+
 from prefect import task, get_run_logger
 import docker
+from pydantic import BaseModel, Field
 
 from prov import on_task_complete
-from image_classifier_dojo.schemas import TrainingRunConfig
+from dojo.schemas import TrainingRunConfig
+
+class VolumeMapping(BaseModel):
+    host_path: str = Field(..., description="Path on the host machine")
+    container_path: str = Field(..., description="Path inside the container")
+    mode: Literal['ro','rw']= Field('rw', description="Mount mode: read-only ('ro') or read-write ('rw')")
 
 @task(on_completion=[on_task_complete])
-def run_container(data_dir: str, output_dir: str, subcommands:list, training_run_config: TrainingRunConfig):
+def run_container(output_dir: str, input_volumes: List[VolumeMapping], subcommands:List[str], training_run_config: TrainingRunConfig, device_ids:List[str]=['all']):
     """
     Run Image Classifier Dojo in a Docker container.
     """
@@ -14,9 +22,10 @@ def run_container(data_dir: str, output_dir: str, subcommands:list, training_run
     logger = get_run_logger()
 
     volumes = {
-        data_dir: {'bind': '/workspace/datasets', 'mode': 'rw'},
-        output_dir: {'bind': '/app/experiments', 'mode': 'rw'}
+        output_dir: {'bind': '/workspace/experiments', 'mode': 'rw'}
     }
+    for vol in input_volumes:
+        volumes[vol.host_path] = {'bind': vol.container_path, 'mode': vol.mode}
 
     command = f"{' '.join(subcommands)}' " \
               f"--logger {training_run_config.logger.model_dump_json()} " \
@@ -26,11 +35,11 @@ def run_container(data_dir: str, output_dir: str, subcommands:list, training_run
               f"--runtime {training_run_config.runtime.model_dump_json()} "
     try:
         container = client.containers.run(
-            'harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.0',
+            'harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.2',
             command,
             shm_size='8g',
             volumes=volumes,
-            device_requests=[docker.types.DeviceRequest(device_ids=["all"], capabilities=[["gpu"]])],
+            device_requests=[docker.types.DeviceRequest(device_ids=device_ids, capabilities=[["gpu"]])],
             ipc_mode="host",
             remove=False,  # Don't auto-remove so we can get logs on failure
             detach=True,

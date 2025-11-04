@@ -1,19 +1,20 @@
 import os
 from pathlib import Path
 import shutil
+from typing import Literal, List
 
 from prefect import flow
 
-from image_classifier_dojo.schemas import TrainingRunConfig
+from dojo.schemas import TrainingRunConfig
 
-from src.tasks.run_containerized_classifier_training import run_container
+from src.tasks.run_containerized_classifier_training import run_container, VolumeMapping
 
 
 @flow(log_prints=True)
-def run_dojo_train_multiclass(datasets_dir:str, experiments_dir:str, training_run_config: TrainingRunConfig):
+def run_dojo_train_multiclass(output_dir: str, input_volumes: List[VolumeMapping], training_run_config: TrainingRunConfig, device_ids:List[str]=['all']):
     """Flow: Run Image Classifier Dojo using the given parameters."""
 
-    run_container(datasets_dir, experiments_dir, ['TRAIN','MULTICLASS'], training_run_config)
+    run_container(output_dir, input_volumes, ['TRAIN','MULTICLASS'], training_run_config, device_ids)
 
 # Deploy the flow
 if __name__ == "__main__":
