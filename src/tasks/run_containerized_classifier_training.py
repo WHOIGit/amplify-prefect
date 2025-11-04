@@ -33,6 +33,15 @@ def run_container(output_dir: str, input_volumes: List[VolumeMapping], subcomman
               f"--model {training_run_config.model.model_dump_json()} " \
               f"--training {training_run_config.training.model_dump_json()} " \
               f"--runtime {training_run_config.runtime.model_dump_json()} "
+    logger.info(command)
+    command = subcommands + [
+                "--logger", training_run_config.logger.model_dump_json(),
+                "--dataset_config", training_run_config.dataset_config.model_dump_json(),
+                "--model", training_run_config.model.model_dump_json(),
+                "--training", training_run_config.training.model_dump_json(),
+                "--runtime", training_run_config.runtime.model_dump_json()
+            ]
+    logger.info(command)
     try:
         container = client.containers.run(
             'harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.2',
