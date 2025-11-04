@@ -29,6 +29,10 @@ class YOLOTrainParams(BaseModel):
     model_name: str = Field(..., description="Name of the YOLO model to train")
     epochs: int = Field(..., description="Number of training epochs")
     gpus: str = Field(..., description="GPU devices to use for training")
+    imgsz: int = Field(640, description="Target image size for training (images resized to squares)")
+    batch: int = Field(16, description="Batch size for training")
+    lr0: float = Field(0.01, description="Initial learning rate (e.g. SGD=1E-2, Adam=1E-3)")
+    agnostic_nms: bool = Field(False, description="Class-agnostic Non-Maximum Suppression during validation")
 
 
 class YOLOInferenceParams(BaseModel):

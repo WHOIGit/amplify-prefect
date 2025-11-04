@@ -4,7 +4,7 @@ import docker
 from src.prov import on_task_complete
 
 @task(on_completion=[on_task_complete])
-def run_containerized_yolo(data_dir, output_dir, model_name, epochs, gpus, yolo_image):
+def run_containerized_yolo(data_dir, output_dir, model_name, epochs, gpus, imgsz, batch, lr0, agnostic_nms, yolo_image):
     """
     Run YOLO training in a Docker container.
     """
@@ -15,7 +15,7 @@ def run_containerized_yolo(data_dir, output_dir, model_name, epochs, gpus, yolo_
         output_dir: {'bind': '/output', 'mode': 'rw'}
     }
 
-    command = f'yolo train data=/data/dataset.yaml model={model_name}.pt epochs={epochs} lr0=0.01 project=/output/ device={gpus}'
+    command = f'yolo train data=/data/dataset.yaml model={model_name}.pt epochs={epochs} imgsz={imgsz} batch={batch} lr0={lr0} agnostic_nms={agnostic_nms} project=/output/ device={gpus}'
 
     container = client.containers.run(
         yolo_image,

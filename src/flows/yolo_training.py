@@ -15,7 +15,7 @@ def run_yolo(yolo_params: YOLOTrainParams):
 
     image = 'ghcr.io/whoigit/amplify-prefect/amplify-ultralytics:latest'
     pull_images([image])
-    run_containerized_yolo(yolo_params.data_dir, yolo_params.output_dir, yolo_params.model_name, yolo_params.epochs, yolo_params.gpus, image)
+    run_containerized_yolo(yolo_params.data_dir, yolo_params.output_dir, yolo_params.model_name, yolo_params.epochs, yolo_params.gpus, yolo_params.imgsz, yolo_params.batch, yolo_params.lr0, yolo_params.agnostic_nms, image)
 
 # Deploy the flow
 if __name__ == "__main__":
