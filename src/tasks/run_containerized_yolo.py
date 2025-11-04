@@ -15,7 +15,7 @@ def run_containerized_yolo(data_dir, output_dir, model_name, epochs, gpus, yolo_
         output_dir: {'bind': '/output', 'mode': 'rw'}
     }
 
-    command = f'yolo train data=/data/dataset.yaml model={model_name}.pt epochs={epochs} lr0=0.01 project=/output/ device={gpus}'
+    command = f'yolo train data=/data/data.yaml model={model_name}.pt epochs={epochs} lr0=0.01 project=/output/ device={gpus}'
 
     container = client.containers.run(
         yolo_image,
