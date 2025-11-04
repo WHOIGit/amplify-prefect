@@ -34,7 +34,7 @@ RUN git clone --branch v8.3.148 --depth 1 https://github.com/ultralytics/ultraly
 
 # Install pip packages
 RUN pip install uv
-RUN uv pip install --system ".[export]" --no-deps albumentations pycocotools "onnxruntime-gpu" tensorrt wandb opencv-python matplotlib pyparsing
+RUN uv pip install --system ".[export]" albumentations pycocotools "onnxruntime-gpu" tensorrt wandb
 
 # Clean up
 RUN rm -rf /root/.config/Ultralytics/persistent_cache.json
