@@ -4,7 +4,7 @@ from prefect import task, get_run_logger
 import docker
 from pydantic import BaseModel, Field
 
-from prov import on_task_complete
+from src.prov import on_task_complete
 from dojo.schemas import TrainingRunConfig
 
 class VolumeMapping(BaseModel):
