@@ -1,6 +1,6 @@
 from prefect import flow
 
-from src.params_amplify import YOLOInferenceParams, YOLOVisualizationParams
+from src.params.params_amplify import YOLOInferenceParams, YOLOVisualizationParams
 from tasks.run_yolo_inference import run_yolo_inference
 from tasks.pull_images import pull_images
 
