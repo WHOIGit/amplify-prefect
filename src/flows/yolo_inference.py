@@ -1,8 +1,8 @@
 from prefect import flow
 
 from src.params.params_amplify import YOLOInferenceParams, YOLOVisualizationParams
-from tasks.run_yolo_inference import run_yolo_inference
-from tasks.pull_images import pull_images
+from src.tasks.run_yolo_inference import run_yolo_inference
+from src.tasks.pull_images import pull_images
 
 @flow(log_prints=True)
 def yolo_infer(yolo_inference_params: YOLOInferenceParams, yolo_visualization_params: YOLOVisualizationParams):

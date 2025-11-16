@@ -3,8 +3,8 @@ import docker
 
 from prefect import get_run_logger
 
-from prov import on_task_complete
-from params_amplify import YOLOInferenceParams, YOLOVisualizationParams
+from src.prov import on_task_complete
+from src.params.params_amplify import YOLOInferenceParams, YOLOVisualizationParams
 
 
 @task(on_completion=[on_task_complete], log_prints=True)
