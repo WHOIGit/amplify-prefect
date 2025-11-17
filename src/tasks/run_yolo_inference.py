@@ -25,7 +25,7 @@ def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualiz
     
     # Build command arguments
     command_args = [
-        "/ultralytics/yolo_inference.sh",
+        "python3 yolo_inference.py",
         str(yolo_inference_params.device),
         str(yolo_inference_params.agnostic_nms),
         str(yolo_inference_params.iou),

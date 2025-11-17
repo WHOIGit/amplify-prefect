@@ -40,5 +40,4 @@ RUN uv pip install --system ".[export]" albumentations pycocotools "onnxruntime-
 RUN rm -rf /root/.config/Ultralytics/persistent_cache.json
 
 # Copy your custom inference script
-COPY docker/amplify-ultralytics/yolo_inference.sh /ultralytics/yolo_inference.sh
-
+COPY docker/amplify-ultralytics/yolo_inference.py /ultralytics/yolo_inference.py
