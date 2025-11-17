@@ -104,7 +104,7 @@ for idx in range(num_workers):
 
     listfile = Path(args.project) / f"image_list.gpu{dev}.txt"
     write_listfile(subset, listfile)
-    run_name = f"{args.name}_gpu{dev}"
+    run_name = f"gpu{dev}"
 
     cmd = [
         "yolo",
