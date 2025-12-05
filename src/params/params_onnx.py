@@ -12,3 +12,4 @@ class ONNXInferenceParams(BaseModel):
     subfolder_type: Literal["run-date", "model-name"] = Field("model-name", description="Toggle between using run date or model name (default) for output directory structure")
     force_notorch: Optional[bool] = Field(None, description="Force non-PyTorch backend")
     cuda_visible_devices: str = Field("0,1,2,3", description="GPU devices to use")
+    ensure_softmax: Optional[bool] = Field(None, description="Ensure softmax is applied to model output")

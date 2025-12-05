@@ -52,6 +52,8 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
         command_args.extend(["--classes", classes_container_path])
     if onnx_inference_params.outfile is not None:
         command_args.extend(["--outfile", onnx_inference_params.outfile])
+    if onnx_inference_params.ensure_softmax:
+        command_args.append("--ensure-softmax")
 
     # Add subfolder type toggle
     command_args.extend(["--subfolder-type", onnx_inference_params.subfolder_type])
