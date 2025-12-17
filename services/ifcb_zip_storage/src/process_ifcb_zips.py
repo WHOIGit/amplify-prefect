@@ -10,8 +10,8 @@ This script:
 import argparse
 import logging
 import sys
-from pyifcb import DataDirectory
-from pyifcb.io import bin2zip_stream
+from ifcb import DataDirectory
+from ifcb.io import bin2zip_stream
 from storage import StorageFactory
 
 
