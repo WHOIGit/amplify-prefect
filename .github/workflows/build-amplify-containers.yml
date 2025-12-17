@@ -6,10 +6,23 @@ on:
       - 'docker/**'
       - 'services/**'
       - '.github/workflows/build-amplify-containers.yml'
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'Which image to build (leave empty for all)'
+        required: false
+        type: choice
+        options:
+          - 'all'
+          - 'amplify-ultralytics'
+          - 'amplify-onnx'
+          - 'ifcb-zip-storage'
+        default: 'all'
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.image == 'all' || github.event.inputs.image == matrix.name
 
     permissions:
       packages: write
