@@ -51,7 +51,7 @@ def run_ifcb_zip_storage(params: IFCBZipStorageParams, image: str):
 
     # Build command arguments
     command_args = [
-        "python", "/app/src/process_ifcb_zips.py",
+        "/app/src/process_ifcb_zips.py",
         "--data-dir", "/data/ifcb",
         "--storage-config", "/config/storage.yaml"
     ]
