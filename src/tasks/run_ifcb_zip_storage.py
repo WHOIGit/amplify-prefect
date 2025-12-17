@@ -1,7 +1,6 @@
 from prefect import task, get_run_logger
 import docker
 
-from src.prov import on_task_complete
 from src.params.params_ifcb_zip_storage import IFCBZipStorageParams
 
 
@@ -23,7 +22,7 @@ def parse_env_file(env_file_path: str) -> dict:
     return env_vars
 
 
-@task(on_completion=[on_task_complete], log_prints=True)
+@task(log_prints=True)
 def run_ifcb_zip_storage(params: IFCBZipStorageParams, image: str):
     """
     Run IFCB ZIP generation and storage in a Docker container.
