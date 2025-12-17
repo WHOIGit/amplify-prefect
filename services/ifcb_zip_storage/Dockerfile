@@ -13,9 +13,15 @@ WORKDIR /app
 COPY services/ifcb_zip_storage/requirements.txt .
 COPY services/ifcb_zip_storage/src/ /app/src/
 
-# Install uv and dependencies
-RUN pip install uv && \
-    uv pip install --system -r requirements.txt
+# Install git, uv, and dependencies, then clean up
+RUN apt-get update && \
+    apt-get install -y git && \
+    pip install uv && \
+    uv pip install --system -r requirements.txt && \
+    apt-get remove -y git && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Default command (allows overriding with arguments)
 ENTRYPOINT ["python"]
