@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'docker/**'
+      - 'services/**'
       - '.github/workflows/build-amplify-containers.yml'
 
 jobs:
@@ -24,6 +25,10 @@ jobs:
           - name: amplify-onnx
             dockerfile: docker/onnx/Dockerfile
             tag: ghcr.io/whoigit/amplify-prefect/amplify-onnx:latest
+
+          - name: ifcb-zip-storage
+            dockerfile: services/ifcb_zip_storage/Dockerfile
+            tag: ghcr.io/whoigit/amplify-prefect/ifcb-zip-storage:latest
 
 
     steps:
