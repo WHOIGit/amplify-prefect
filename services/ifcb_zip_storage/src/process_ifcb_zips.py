@@ -12,7 +12,7 @@ import logging
 import sys
 from ifcb.data.files import DataDirectory
 from ifcb.data.zip import bin2zip_stream
-from storage import StorageFactory
+from storage.config_builder import StoreFactory
 
 
 logging.basicConfig(
@@ -32,7 +32,7 @@ def process_ifcb_directory(data_dir: str, storage_yaml: str):
     """
     # Initialize storage from YAML config
     logger.info(f"Initializing storage from: {storage_yaml}")
-    store = StorageFactory(storage_yaml).main
+    store = StoreFactory(storage_yaml).build()
 
     # Initialize IFCB data directory
     logger.info(f"Processing IFCB data from: {data_dir}")
