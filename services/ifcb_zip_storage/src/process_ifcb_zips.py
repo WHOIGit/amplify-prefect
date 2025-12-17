@@ -8,6 +8,7 @@ This script:
 3. Uploads ZIP buffers to object store defined by YAML configuration
 """
 import argparse
+import asyncio
 import logging
 import sys
 from ifcb.data.files import DataDirectory
@@ -22,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def process_ifcb_directory(data_dir: str, storage_yaml: str):
+async def process_ifcb_directory(data_dir: str, storage_yaml: str):
     """
     Process IFCB data directory and upload ZIPs to object store.
 
@@ -57,7 +58,7 @@ def process_ifcb_directory(data_dir: str, storage_yaml: str):
             key = f"{bin_name}.zip"
 
             # Upload to object store
-            store.put(key, buffer)
+            await store.put(key, buffer)
             logger.info(f"Uploaded: {key}")
             total_uploaded += 1
 
@@ -94,7 +95,7 @@ def main():
 
     args = parser.parse_args()
 
-    process_ifcb_directory(args.data_dir, args.storage_config)
+    asyncio.run(process_ifcb_directory(args.data_dir, args.storage_config))
 
 
 if __name__ == "__main__":
