@@ -1,5 +1,5 @@
 # Use slim Python base image
-FROM python:3.13-slim
+FROM python:3.12-slim
 
 # Set environment variables to prevent .pyc files and set UTF-8 encoding
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -13,12 +13,12 @@ WORKDIR /app
 COPY services/ifcb_zip_storage/requirements.txt .
 COPY services/ifcb_zip_storage/src/ /app/src/
 
-# Install git, build tools, uv, and dependencies, then clean up
+# Install git, uv, and dependencies, then clean up
 RUN apt-get update && \
-    apt-get install -y git build-essential gfortran pkg-config libopenblas-dev && \
+    apt-get install -y git && \
     pip install uv && \
     uv pip install --system -r requirements.txt && \
-    apt-get remove -y git build-essential gfortran pkg-config libopenblas-dev && \
+    apt-get remove -y git && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
