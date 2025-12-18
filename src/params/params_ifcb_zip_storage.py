@@ -13,7 +13,7 @@ class IFCBZipStorageParams(BaseModel):
         description="Path to YAML file defining the object store configuration"
     )
 
-    env_file: Optional[str] = Field(
-        None,
+    env_file: str = Field(
+        ...,
         description="Path to .env file containing environment variables for storage configuration"
     )
