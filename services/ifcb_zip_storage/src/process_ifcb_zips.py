@@ -74,7 +74,7 @@ def process_ifcb_directory(data_dir: str, storage_yaml: str, num_workers: int):
     logger.info(f"Scanning IFCB data from: {data_dir}")
     dd = DataDirectory(data_dir)
 
-    bin_pids = [fileset_bin.pid for fileset_bin in dd]
+    bin_pids = [str(fileset_bin.pid) for fileset_bin in dd]
     total_bins = len(bin_pids)
 
     if total_bins == 0:
