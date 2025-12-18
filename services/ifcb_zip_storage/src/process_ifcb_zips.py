@@ -14,7 +14,6 @@ import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from ifcb.data.files import DataDirectory
-from ifcb.data.adc import fileset_from_pid
 from ifcb.data.zip import bin2zip_stream
 from storage.config_builder import StoreFactory
 
@@ -39,8 +38,9 @@ def process_single_bin(data_dir: str, bin_pid: str, storage_yaml: str) -> tuple:
         tuple: (bin_pid, success: bool, error_message: str or None)
     """
     try:
-        # Recreate the fileset from the PID
-        fileset_bin = fileset_from_pid(data_dir, bin_pid)
+        # Recreate DataDirectory and get the fileset by PID
+        dd = DataDirectory(data_dir)
+        fileset_bin = dd[bin_pid]
 
         # Generate ZIP stream
         buffer = bin2zip_stream(fileset_bin)
