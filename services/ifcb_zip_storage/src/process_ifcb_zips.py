@@ -34,7 +34,7 @@ async def process_ifcb_directory(data_dir: str, storage_yaml: str):
     # Initialize storage from YAML config
     logger.info(f"Initializing storage from: {storage_yaml}")
 
-    # Use async context manager for AsyncBucketStore
+    # Build store from YAML and enter async context manager
     async with StoreFactory(storage_yaml).build() as store:
         # Initialize IFCB data directory
         logger.info(f"Processing IFCB data from: {data_dir}")
