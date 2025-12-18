@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, field_validator
+import os
 
 
 class IFCBZipStorageParams(BaseModel):
@@ -17,3 +17,18 @@ class IFCBZipStorageParams(BaseModel):
         ...,
         description="Path to .env file containing environment variables for storage configuration"
     )
+
+    num_workers: int = Field(
+        16,
+        description="Number of parallel workers for processing bins (capped at CPU count)"
+    )
+
+    @field_validator('num_workers')
+    @classmethod
+    def cap_workers_at_cpu_count(cls, v):
+        max_workers = os.cpu_count() or 1
+        if v > max_workers:
+            return max_workers
+        if v < 1:
+            return 1
+        return v

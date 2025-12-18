@@ -24,7 +24,7 @@ def run_ifcb_zip_storage(params: IFCBZipStorageParams, image: str):
         params.storage_yaml: {'bind': '/config/storage.yaml', 'mode': 'ro'}
     }
 
-    # Load environment variables from env file if provided
+    # Load environment variables from env file
     environment = {}
     if params.env_file:
         logger.info(f"Loading environment variables from: {params.env_file}")
@@ -35,7 +35,8 @@ def run_ifcb_zip_storage(params: IFCBZipStorageParams, image: str):
     command_args = [
         "/app/src/process_ifcb_zips.py",
         "--data-dir", "/data/ifcb",
-        "--storage-config", "/config/storage.yaml"
+        "--storage-config", "/config/storage.yaml",
+        "--num-workers", str(params.num_workers)
     ]
 
     logger.info(f'Running IFCB ZIP storage with command: {" ".join(command_args)}')
