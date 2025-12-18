@@ -1,25 +1,8 @@
 from prefect import task, get_run_logger
 import docker
+from dotenv import dotenv_values
 
 from src.params.params_ifcb_zip_storage import IFCBZipStorageParams
-
-
-def parse_env_file(env_file_path: str) -> dict:
-    """Parse a .env file and return a dict of environment variables."""
-    env_vars = {}
-    with open(env_file_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            # Skip empty lines and comments
-            if not line or line.startswith('#'):
-                continue
-            # Parse KEY=VALUE
-            if '=' in line:
-                key, value = line.split('=', 1)
-                # Remove quotes if present
-                value = value.strip('"').strip("'")
-                env_vars[key.strip()] = value
-    return env_vars
 
 
 @task(log_prints=True)
@@ -45,7 +28,7 @@ def run_ifcb_zip_storage(params: IFCBZipStorageParams, image: str):
     environment = {}
     if params.env_file:
         logger.info(f"Loading environment variables from: {params.env_file}")
-        environment = parse_env_file(params.env_file)
+        environment = dict(dotenv_values(params.env_file))
         logger.info(f"Loaded {len(environment)} environment variables")
 
     # Build command arguments
