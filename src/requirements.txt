@@ -67,7 +67,7 @@ packaging==24.2
 pandas==2.3.1
 pathspec==0.12.1
 pendulum==3.0.0
-pillow==11.1.0
+pillow==12.1.1
 prefect==3.3.1
 prometheus_client==0.21.1
 propcache==0.3.1
