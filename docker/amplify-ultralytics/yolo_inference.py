@@ -6,6 +6,7 @@ import shlex
 import subprocess
 from pathlib import Path
 from math import ceil
+import cv2
 
 # ---- helpers ----
 def chunk(lst, n):
@@ -36,6 +37,60 @@ def write_listfile(paths, out_path):
     with open(out_path, "w") as f:
         for p in paths:
             f.write(str(p) + "\n")
+
+def validate_media_file(file_path):
+    """
+    Validate that an image or video file is readable by OpenCV/YOLO.
+    Handles both static images (jpg, png, etc.) and video files (avi, mp4, etc.).
+
+    Returns:
+        tuple: (is_valid: bool, reason: str or None)
+    """
+    # Check file size
+    try:
+        file_size = file_path.stat().st_size
+        if file_size == 0:
+            return False, "empty file (0 bytes)"
+    except Exception as e:
+        return False, f"unable to stat file: {e}"
+
+    # Common image extensions - use cv2.imread for these
+    image_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
+    file_ext = file_path.suffix.lower()
+
+    try:
+        if file_ext in image_exts:
+            # For images, try to read with cv2.imread
+            img = cv2.imread(str(file_path))
+            if img is None:
+                return False, "cannot read image with OpenCV"
+            return True, None
+        else:
+            # For videos or other formats, use VideoCapture
+            cap = None
+            try:
+                cap = cv2.VideoCapture(str(file_path))
+                if not cap.isOpened():
+                    return False, "cannot open with OpenCV"
+
+                # Check frame count
+                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                if frame_count <= 0:
+                    return False, "no frames detected"
+
+                # Try to read first frame
+                ret, frame = cap.read()
+                if not ret or frame is None:
+                    return False, "cannot read first frame"
+
+                return True, None
+
+            finally:
+                if cap is not None:
+                    cap.release()
+
+    except Exception as e:
+        return False, f"validation error: {e}"
 
 # ---- args ----
 parser = argparse.ArgumentParser(
@@ -84,10 +139,31 @@ if not gpu_ids:
     sys.exit(2)
 
 src_root = Path(args.source_root)
-files = sorted([p for p in src_root.rglob(f"*{args.ext}") if p.is_file()])
-if not files:
+discovered_files = sorted([p for p in src_root.rglob(f"*{args.ext}") if p.is_file()])
+if not discovered_files:
     print(f"No files found under {src_root} with extension {args.ext}", file=sys.stderr)
     sys.exit(3)
+
+# Validate media files before processing
+print(f"Found {len(discovered_files)} files, validating...", file=sys.stderr)
+files = []
+skipped_count = 0
+for file_path in discovered_files:
+    is_valid, reason = validate_media_file(file_path)
+    if is_valid:
+        files.append(file_path)
+    else:
+        skipped_count += 1
+        print(f"WARNING: Skipping {file_path}: {reason}", file=sys.stderr)
+
+if not files:
+    print(f"No valid media files found. All {len(discovered_files)} files were skipped.", file=sys.stderr)
+    sys.exit(3)
+
+if skipped_count > 0:
+    print(f"Validated: {len(files)} valid files, {skipped_count} skipped", file=sys.stderr)
+else:
+    print(f"Validated: All {len(files)} files are valid", file=sys.stderr)
 
 num_workers = min(len(gpu_ids), len(files))
 slices = chunk(files, num_workers)
