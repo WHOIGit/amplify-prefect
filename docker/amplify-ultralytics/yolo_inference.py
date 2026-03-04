@@ -2,11 +2,12 @@
 import argparse
 import os
 import sys
-import shlex
-import subprocess
 from pathlib import Path
 from math import ceil
 import cv2
+from multiprocessing import Process
+from ultralytics import YOLO
+import threading
 
 # ---- helpers ----
 def chunk(lst, n):
@@ -32,87 +33,25 @@ def parse_bool(s: str) -> bool:
     else:
         raise ValueError(f"Expected 'True' or 'False', got '{s}'")
 
-def write_listfile(paths, out_path):
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w") as f:
-        for p in paths:
-            f.write(str(p) + "\n")
+def load_completed_files(manifest_file):
+    """Load the set of completed file paths from the manifest."""
+    if not manifest_file.exists():
+        return set()
+    try:
+        with open(manifest_file, 'r') as f:
+            return set(line.strip() for line in f if line.strip())
+    except Exception as e:
+        print(f"WARNING: Could not read manifest {manifest_file}: {e}", file=sys.stderr)
+        return set()
 
-def check_outputs_complete(file_path, frame_count, output_dirs, settings):
-    """
-    Check if all expected outputs for a file already exist in any output directory.
-
-    Args:
-        file_path: Path to input file
-        frame_count: Number of frames (for videos) or None (for images)
-        output_dirs: List of output directories to check (e.g., [Path("/output/gpu0"), Path("/output/gpu1")])
-        settings: Namespace with save settings (save, save_txt, save_frames, vid_stride)
-
-    Returns:
-        bool: True if all expected outputs exist and are complete, False otherwise
-
-    Note: save_crop is not checked as it uses a flat directory structure
-          making per-file verification difficult.
-    """
-    stem = file_path.stem
-    is_video = frame_count is not None
-
-    # If no save options are enabled, we can't check anything
-    if not (settings.save or settings.save_txt or settings.save_frames):
-        return False
-
-    # Check each output directory
-    for output_dir in output_dirs:
-        if not output_dir.exists():
-            continue
-
-        all_complete = True
-
-        # Check save_txt outputs
-        if settings.save_txt:
-            if is_video:
-                # For videos: count label files matching {stem}_*.txt
-                expected_frames = ceil(frame_count / settings.vid_stride)
-                labels_dir = output_dir / "labels"
-                if labels_dir.exists():
-                    label_files = list(labels_dir.glob(f"{stem}_*.txt"))
-                    if len(label_files) != expected_frames:
-                        all_complete = False
-                else:
-                    all_complete = False
-            else:
-                # For images: check for single label file
-                label_file = output_dir / "labels" / f"{stem}.txt"
-                if not label_file.exists():
-                    all_complete = False
-
-        # Check save_frames outputs (video only)
-        if settings.save_frames and is_video:
-            expected_frames = ceil(frame_count / settings.vid_stride)
-            frames_dir = output_dir / f"{stem}_frames"
-            if frames_dir.exists():
-                frame_files = list(frames_dir.glob(f"{stem}_*.jpg"))
-                if len(frame_files) != expected_frames:
-                    all_complete = False
-            else:
-                all_complete = False
-
-        # Check save outputs (annotated image/video)
-        if settings.save:
-            # YOLO outputs .avi for videos on Linux, original extension for images
-            if is_video:
-                output_file = output_dir / f"{stem}.avi"
-            else:
-                output_file = output_dir / f"{stem}{file_path.suffix}"
-
-            if not output_file.exists() or output_file.stat().st_size == 0:
-                all_complete = False
-
-        # If this directory has all complete outputs, return True
-        if all_complete:
-            return True
-
-    return False
+def mark_file_complete(manifest_file, file_path, lock):
+    """Append a file path to the completion manifest (thread-safe)."""
+    try:
+        with lock:
+            with open(manifest_file, 'a') as f:
+                f.write(str(file_path) + "\n")
+    except Exception as e:
+        print(f"ERROR: Could not write to manifest {manifest_file}: {e}", file=sys.stderr)
 
 def validate_media_file(file_path):
     """
@@ -168,6 +107,98 @@ def validate_media_file(file_path):
 
     except Exception as e:
         return False, f"validation error: {e}", None
+
+def process_files_on_gpu(gpu_id, files, completed_files, manifest_file, manifest_lock, args, classes_list, embed_list):
+    """
+    Worker function: Load YOLO model once and process all assigned files on one GPU.
+
+    Args:
+        gpu_id: GPU device ID (e.g., "0", "1", "2")
+        files: List of file paths to process
+        completed_files: Set of already-completed file paths
+        manifest_file: Path to completion manifest file
+        manifest_lock: Threading lock for manifest writes
+        args: Argument namespace with all YOLO parameters
+        classes_list: Parsed list of class IDs or None
+        embed_list: Parsed list of embed layers or None
+    """
+    try:
+        # Load model once for this GPU
+        print(f"GPU {gpu_id}: Loading model {args.model}...", file=sys.stderr)
+        model = YOLO(args.model)
+        print(f"GPU {gpu_id}: Model loaded, processing {len(files)} files", file=sys.stderr)
+
+        processed = 0
+        skipped = 0
+        errors = 0
+
+        for file_path in files:
+            file_str = str(file_path)
+
+            # Skip if already complete
+            if file_str in completed_files:
+                skipped += 1
+                print(f"GPU {gpu_id}: Skipping {file_path.name} (already complete)", file=sys.stderr)
+                continue
+
+            try:
+                print(f"GPU {gpu_id}: Processing {file_path.name}...", file=sys.stderr)
+
+                # Build prediction arguments
+                predict_kwargs = {
+                    'source': file_str,
+                    'device': gpu_id,
+                    'project': args.project,
+                    'name': f'gpu{gpu_id}',
+                    'exist_ok': True,
+                    'agnostic_nms': args.agnostic_nms,
+                    'iou': args.iou,
+                    'conf': args.conf,
+                    'imgsz': args.imgsz,
+                    'batch': args.batch,
+                    'half': args.half,
+                    'max_det': args.max_det,
+                    'vid_stride': args.vid_stride,
+                    'stream_buffer': args.stream_buffer,
+                    'visualize': args.visualize,
+                    'augment': args.augment,
+                    'retina_masks': args.retina_masks,
+                    'verbose': args.verbose,
+                    'show': args.show,
+                    'save': args.save,
+                    'save_txt': args.save_txt,
+                    'save_conf': args.save_conf,
+                    'save_crop': args.save_crop,
+                    'save_frames': args.save_frames,
+                    'show_labels': args.show_labels,
+                    'show_conf': args.show_conf,
+                    'show_boxes': args.show_boxes,
+                }
+
+                # Add optional parameters
+                if classes_list is not None:
+                    predict_kwargs['classes'] = classes_list
+                if embed_list is not None:
+                    predict_kwargs['embed'] = embed_list
+
+                # Run prediction
+                results = model.predict(**predict_kwargs)
+
+                # Mark as complete
+                mark_file_complete(manifest_file, file_path, manifest_lock)
+                processed += 1
+                print(f"GPU {gpu_id}: Completed {file_path.name}", file=sys.stderr)
+
+            except Exception as e:
+                errors += 1
+                print(f"GPU {gpu_id}: ERROR processing {file_path.name}: {e}", file=sys.stderr)
+                # Continue to next file instead of crashing
+
+        print(f"GPU {gpu_id}: Finished - {processed} processed, {skipped} skipped, {errors} errors", file=sys.stderr)
+
+    except Exception as e:
+        print(f"GPU {gpu_id}: FATAL ERROR: {e}", file=sys.stderr)
+        raise
 
 # ---- args ----
 parser = argparse.ArgumentParser(
@@ -242,92 +273,66 @@ if validation_skipped > 0:
 else:
     print(f"Validated: All {len(valid_files_with_metadata)} files are valid", file=sys.stderr)
 
-# Check for existing outputs and filter out already-complete files
-print(f"Checking for existing outputs in {args.project}...", file=sys.stderr)
+# Load completion manifest
 project_path = Path(args.project)
-output_dirs = sorted(project_path.glob("gpu*")) if project_path.exists() else []
+project_path.mkdir(parents=True, exist_ok=True)
+manifest_file = project_path / ".completed_files.txt"
+manifest_lock = threading.Lock()
 
-files = []  # Final list of files to process
-already_complete = 0
-for file_path, frame_count in valid_files_with_metadata:
-    if check_outputs_complete(file_path, frame_count, output_dirs, args):
-        already_complete += 1
-        print(f"Skipping {file_path}: outputs already complete", file=sys.stderr)
-    else:
-        files.append(file_path)
+print(f"Loading completion manifest from {manifest_file}...", file=sys.stderr)
+completed_files = load_completed_files(manifest_file)
 
-if not files:
-    print(f"All {len(valid_files_with_metadata)} files have complete outputs. Nothing to process.", file=sys.stderr)
+# Extract just file paths (drop frame_count metadata)
+files = [file_path for file_path, _ in valid_files_with_metadata]
+
+# Count how many are already complete
+already_complete = sum(1 for f in files if str(f) in completed_files)
+
+if already_complete == len(files):
+    print(f"All {len(files)} files already complete. Nothing to process.", file=sys.stderr)
     sys.exit(0)
 
 if already_complete > 0:
-    print(f"Processing {len(files)} files, {already_complete} already complete", file=sys.stderr)
+    print(f"Found {already_complete} already complete, will process {len(files) - already_complete} files", file=sys.stderr)
 else:
     print(f"Processing all {len(files)} files", file=sys.stderr)
 
+# Distribute files across GPUs
 num_workers = min(len(gpu_ids), len(files))
 slices = chunk(files, num_workers)
 
+# Parse optional class and embed lists
 classes_list = parse_int_list(args.classes)
 embed_list = parse_int_list(args.embed)
 
-procs = []
+# Spawn one worker process per GPU
+print(f"Spawning {num_workers} GPU workers...", file=sys.stderr)
+workers = []
 for idx in range(num_workers):
-    dev = gpu_ids[idx]
-    subset = slices[idx]
-    if not subset:
+    gpu_id = gpu_ids[idx]
+    file_subset = slices[idx]
+    if not file_subset:
         continue
 
-    listfile = Path(args.project) / f"image_list.gpu{dev}.txt"
-    write_listfile(subset, listfile)
-    run_name = f"gpu{dev}"
+    p = Process(
+        target=process_files_on_gpu,
+        args=(gpu_id, file_subset, completed_files, manifest_file, manifest_lock, args, classes_list, embed_list)
+    )
+    p.start()
+    workers.append(p)
 
-    cmd = [
-        "yolo",
-        "mode=predict",
-        "task=detect",
-        f"source={listfile}",
-        f"model={args.model}",
-        f"project={args.project}",
-        f"device={dev}",
-        f"agnostic_nms={args.agnostic_nms}",
-        f"iou={args.iou}",
-        f"conf={args.conf}",
-        f"imgsz={args.imgsz}",
-        f"batch={args.batch}",
-        f"half={args.half}",
-        f"max_det={args.max_det}",
-        f"vid_stride={args.vid_stride}",
-        f"stream_buffer={args.stream_buffer}",
-        f"visualize={args.visualize}",
-        f"augment={args.augment}",
-        f"retina_masks={args.retina_masks}",
-        f"name={run_name}",
-        "exist_ok=True",
-        f"verbose={args.verbose}",
-        f"show={args.show}",
-        f"save={args.save}",
-        f"save_txt={args.save_txt}",
-        f"save_conf={args.save_conf}",
-        f"save_crop={args.save_crop}",
-        f"show_labels={args.show_labels}",
-        f"show_conf={args.show_conf}",
-        f"show_boxes={args.show_boxes}",
-    ]
-
-    if classes_list is not None:
-        cmd.append(f"classes={classes_list}")
-    if embed_list is not None:
-        cmd.append(f"embed={embed_list}")
-
-    print("Launching:", " ".join(shlex.quote(c) for c in cmd))
-    procs.append(subprocess.Popen(cmd))
-
+# Wait for all workers to complete
+print(f"Waiting for {len(workers)} workers to complete...", file=sys.stderr)
 exit_code = 0
-for p in procs:
-    rc = p.wait()
-    if rc != 0 and exit_code == 0:
-        exit_code = rc
+for p in workers:
+    p.join()
+    if p.exitcode != 0 and exit_code == 0:
+        exit_code = p.exitcode
+
+if exit_code == 0:
+    print("All workers completed successfully", file=sys.stderr)
+else:
+    print(f"One or more workers failed with exit code {exit_code}", file=sys.stderr)
 
 sys.exit(exit_code)
 
