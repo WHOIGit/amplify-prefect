@@ -8,7 +8,7 @@ from src.tasks.pull_images import pull_images
 def yolo_infer(yolo_inference_params: YOLOInferenceParams, yolo_visualization_params: YOLOVisualizationParams):
     """Flow: Run YOLO using the given parameters."""
     image = 'amplify-ultralytics:latest'
-    pull_images([image])
+    # pull_images([image])
     run_yolo_inference(yolo_inference_params, yolo_visualization_params, image)
 
 # Deploy the flow
