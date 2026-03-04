@@ -38,21 +38,98 @@ def write_listfile(paths, out_path):
         for p in paths:
             f.write(str(p) + "\n")
 
+def check_outputs_complete(file_path, frame_count, output_dirs, settings):
+    """
+    Check if all expected outputs for a file already exist in any output directory.
+
+    Args:
+        file_path: Path to input file
+        frame_count: Number of frames (for videos) or None (for images)
+        output_dirs: List of output directories to check (e.g., [Path("/output/gpu0"), Path("/output/gpu1")])
+        settings: Namespace with save settings (save, save_txt, save_frames, vid_stride)
+
+    Returns:
+        bool: True if all expected outputs exist and are complete, False otherwise
+
+    Note: save_crop is not checked as it uses a flat directory structure
+          making per-file verification difficult.
+    """
+    stem = file_path.stem
+    is_video = frame_count is not None
+
+    # If no save options are enabled, we can't check anything
+    if not (settings.save or settings.save_txt or settings.save_frames):
+        return False
+
+    # Check each output directory
+    for output_dir in output_dirs:
+        if not output_dir.exists():
+            continue
+
+        all_complete = True
+
+        # Check save_txt outputs
+        if settings.save_txt:
+            if is_video:
+                # For videos: count label files matching {stem}_*.txt
+                expected_frames = ceil(frame_count / settings.vid_stride)
+                labels_dir = output_dir / "labels"
+                if labels_dir.exists():
+                    label_files = list(labels_dir.glob(f"{stem}_*.txt"))
+                    if len(label_files) != expected_frames:
+                        all_complete = False
+                else:
+                    all_complete = False
+            else:
+                # For images: check for single label file
+                label_file = output_dir / "labels" / f"{stem}.txt"
+                if not label_file.exists():
+                    all_complete = False
+
+        # Check save_frames outputs (video only)
+        if settings.save_frames and is_video:
+            expected_frames = ceil(frame_count / settings.vid_stride)
+            frames_dir = output_dir / f"{stem}_frames"
+            if frames_dir.exists():
+                frame_files = list(frames_dir.glob(f"{stem}_*.jpg"))
+                if len(frame_files) != expected_frames:
+                    all_complete = False
+            else:
+                all_complete = False
+
+        # Check save outputs (annotated image/video)
+        if settings.save:
+            # YOLO outputs .avi for videos on Linux, original extension for images
+            if is_video:
+                output_file = output_dir / f"{stem}.avi"
+            else:
+                output_file = output_dir / f"{stem}{file_path.suffix}"
+
+            if not output_file.exists() or output_file.stat().st_size == 0:
+                all_complete = False
+
+        # If this directory has all complete outputs, return True
+        if all_complete:
+            return True
+
+    return False
+
 def validate_media_file(file_path):
     """
     Validate that an image or video file is readable by OpenCV/YOLO.
     Handles both static images (jpg, png, etc.) and video files (avi, mp4, etc.).
 
     Returns:
-        tuple: (is_valid: bool, reason: str or None)
+        tuple: (is_valid: bool, reason: str or None, frame_count: int or None)
+        frame_count is None for images, or the number of frames for videos
     """
     # Check file size
     try:
         file_size = file_path.stat().st_size
         if file_size == 0:
-            return False, "empty file (0 bytes)"
+            return False, "empty file (0 bytes)", None
     except Exception as e:
-        return False, f"unable to stat file: {e}"
+        return False, f"unable to stat file: {e}", None
 
     # Common image extensions - use cv2.imread for these
     image_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
@@ -63,34 +140,34 @@ def validate_media_file(file_path):
             # For images, try to read with cv2.imread
             img = cv2.imread(str(file_path))
             if img is None:
-                return False, "cannot read image with OpenCV"
-            return True, None
+                return False, "cannot read image with OpenCV", None
+            return True, None, None
         else:
             # For videos or other formats, use VideoCapture
             cap = None
             try:
                 cap = cv2.VideoCapture(str(file_path))
                 if not cap.isOpened():
-                    return False, "cannot open with OpenCV"
+                    return False, "cannot open with OpenCV", None
 
                 # Check frame count
                 frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                 if frame_count <= 0:
-                    return False, "no frames detected"
+                    return False, "no frames detected", None
 
                 # Try to read first frame
                 ret, frame = cap.read()
                 if not ret or frame is None:
-                    return False, "cannot read first frame"
+                    return False, "cannot read first frame", None
 
-                return True, None
+                return True, None, frame_count
 
             finally:
                 if cap is not None:
                     cap.release()
 
     except Exception as e:
-        return False, f"validation error: {e}"
+        return False, f"validation error: {e}", None
 
 # ---- args ----
 parser = argparse.ArgumentParser(
@@ -146,24 +223,47 @@ if not discovered_files:
 
 # Validate media files before processing
 print(f"Found {len(discovered_files)} files, validating...", file=sys.stderr)
-files = []
-skipped_count = 0
+valid_files_with_metadata = []  # List of (file_path, frame_count) tuples
+validation_skipped = 0
 for file_path in discovered_files:
-    is_valid, reason = validate_media_file(file_path)
+    is_valid, reason, frame_count = validate_media_file(file_path)
     if is_valid:
-        files.append(file_path)
+        valid_files_with_metadata.append((file_path, frame_count))
     else:
-        skipped_count += 1
+        validation_skipped += 1
         print(f"WARNING: Skipping {file_path}: {reason}", file=sys.stderr)
 
-if not files:
+if not valid_files_with_metadata:
     print(f"No valid media files found. All {len(discovered_files)} files were skipped.", file=sys.stderr)
     sys.exit(3)
 
-if skipped_count > 0:
-    print(f"Validated: {len(files)} valid files, {skipped_count} skipped", file=sys.stderr)
+if validation_skipped > 0:
+    print(f"Validated: {len(valid_files_with_metadata)} valid files, {validation_skipped} skipped", file=sys.stderr)
 else:
-    print(f"Validated: All {len(files)} files are valid", file=sys.stderr)
+    print(f"Validated: All {len(valid_files_with_metadata)} files are valid", file=sys.stderr)
+
+# Check for existing outputs and filter out already-complete files
+print(f"Checking for existing outputs in {args.project}...", file=sys.stderr)
+project_path = Path(args.project)
+output_dirs = sorted(project_path.glob("gpu*")) if project_path.exists() else []
+
+files = []  # Final list of files to process
+already_complete = 0
+for file_path, frame_count in valid_files_with_metadata:
+    if check_outputs_complete(file_path, frame_count, output_dirs, args):
+        already_complete += 1
+        print(f"Skipping {file_path}: outputs already complete", file=sys.stderr)
+    else:
+        files.append(file_path)
+
+if not files:
+    print(f"All {len(valid_files_with_metadata)} files have complete outputs. Nothing to process.", file=sys.stderr)
+    sys.exit(0)
+
+if already_complete > 0:
+    print(f"Processing {len(files)} files, {already_complete} already complete", file=sys.stderr)
+else:
+    print(f"Processing all {len(files)} files", file=sys.stderr)
 
 num_workers = min(len(gpu_ids), len(files))
 slices = chunk(files, num_workers)
