@@ -303,6 +303,7 @@ for idx in range(num_workers):
         f"augment={args.augment}",
         f"retina_masks={args.retina_masks}",
         f"name={run_name}",
+        "exist_ok=True",
         f"verbose={args.verbose}",
         f"show={args.show}",
         f"save={args.save}",
