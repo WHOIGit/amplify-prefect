@@ -13,3 +13,6 @@ class ONNXInferenceParams(BaseModel):
     force_notorch: Optional[bool] = Field(None, description="Force non-PyTorch backend")
     cuda_visible_devices: str = Field("0,1,2,3", description="GPU devices to use")
     ensure_softmax: Optional[bool] = Field(None, description="Ensure softmax is applied to model output")
+    embeddings: bool = Field(False, description="Emit penultimate-layer embeddings when the model exposes them")
+    embeddings_only: bool = Field(False, description="Skip score CSV output and write only embeddings")
+    embeddings_outfile: Optional[str] = Field(None, description="Custom embedding output filename")

@@ -81,7 +81,7 @@ Navigate to the Prefect UI in your browser at `http://{EXTERNAL_HOST_NAME}:4200`
 
 ### ONNX Inference Workflow
 
-The ONNX inference workflow requires the following parameters in the Prefect UI:
+The ONNX inference workflow requires the following parameters in the Prefect UI. It runs the published `ghcr.io/whoigit/ifcb-inference:latest` container.
 
 **ONNXInferenceParams:**
 - `model`: Path to the ONNX model file
@@ -90,8 +90,14 @@ The ONNX inference workflow requires the following parameters in the Prefect UI:
 - `batch` (optional): Batch size for inference
 - `classes` (optional): Specific classes to process
 - `outfile` (optional): Custom output filename
+- `subfolder_type` (optional): Choose `model-name` or `run-date` output layout
 - `force_notorch` (optional): Force non-PyTorch backend
 - `cuda_visible_devices`: GPU devices to use (default: "0,1,2,3")
+- `embeddings` (optional): Write penultimate-layer embeddings alongside scores
+- `embeddings_only` (optional): Skip the score CSV and write only embeddings
+- `embeddings_outfile` (optional): Custom embeddings filename
+
+The embeddings options require an ONNX model that has already been modified to expose the embedding tensor as a second graph output.
 
 ### YOLO Inference Workflow
 
