@@ -124,6 +124,7 @@ The YOLO inference workflow requires two parameter sets:
 - `embed`: Extract feature vectors from specified layers (optional)
 - `name`: Name for prediction run subdirectory (optional)
 - `verbose`: Display detailed inference logs (default: true)
+- `ext`: File extension to scan for inference inputs (default: ".avi")
 
 **YOLOVisualizationParams:**
 - `show`: Display annotated images/videos in window (default: false)

@@ -56,6 +56,7 @@ class YOLOInferenceParams(BaseModel):
     embed: list[int] | None = Field(None, description="Extract feature vectors from specified layers")
     name: str | None = Field(None, description="Name for prediction run subdirectory")
     verbose: bool = Field(True, description="Display detailed inference logs")
+    ext: str = Field(".avi", description="File extension to scan for YOLO inference")
 
 
 class YOLOVisualizationParams(BaseModel):

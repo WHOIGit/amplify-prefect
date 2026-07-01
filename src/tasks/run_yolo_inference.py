@@ -7,23 +7,10 @@ from src.prov import on_task_complete
 from src.params.params_amplify import YOLOInferenceParams, YOLOVisualizationParams
 
 
-@task(on_completion=[on_task_complete], log_prints=True)
-def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualization_params: YOLOVisualizationParams, yolo_image: str):
-    """
-    Run YOLO in a Docker container.
-    """
-    
-    client = docker.from_env()
-    logger = get_run_logger()
-    
-    # Set up volumes
-    volumes = {
-        yolo_inference_params.data_dir: {'bind': '/data', 'mode': 'rw'},
-        yolo_inference_params.output_dir: {'bind': '/output', 'mode': 'rw'},
-        yolo_inference_params.model_weights_path: {'bind': '/input/weights.pt', 'mode': 'ro'}
-    }
-    
-    # Build command arguments
+def _build_command_args(
+    yolo_inference_params: YOLOInferenceParams,
+    yolo_visualization_params: YOLOVisualizationParams,
+) -> list[str]:
     command_args = [
         "python3",
         "/ultralytics/yolo_inference.py",
@@ -52,8 +39,32 @@ def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualiz
         str(yolo_visualization_params.save_crop),
         str(yolo_visualization_params.show_labels),
         str(yolo_visualization_params.show_conf),
-        str(yolo_visualization_params.show_boxes)
+        str(yolo_visualization_params.show_boxes),
     ]
+
+    if yolo_inference_params.ext:
+        command_args.extend(["--ext", yolo_inference_params.ext])
+
+    return command_args
+
+
+@task(on_completion=[on_task_complete], log_prints=True)
+def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualization_params: YOLOVisualizationParams, yolo_image: str):
+    """
+    Run YOLO in a Docker container.
+    """
+    
+    client = docker.from_env()
+    logger = get_run_logger()
+    
+    # Set up volumes
+    volumes = {
+        yolo_inference_params.data_dir: {'bind': '/data', 'mode': 'rw'},
+        yolo_inference_params.output_dir: {'bind': '/output', 'mode': 'rw'},
+        yolo_inference_params.model_weights_path: {'bind': '/input/weights.pt', 'mode': 'ro'}
+    }
+    
+    command_args = _build_command_args(yolo_inference_params, yolo_visualization_params)
     
     logger.info(f'Running container with command: {" ".join(command_args)}')
     
@@ -81,4 +92,3 @@ def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualiz
     except Exception as e:
         logger.error(f"Unexpected error running container: {str(e)}")
         raise
-
