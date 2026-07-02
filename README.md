@@ -92,7 +92,9 @@ The ONNX inference workflow requires the following parameters in the Prefect UI.
 - `outfile` (optional): Custom output filename
 - `subfolder_type` (optional): Choose `model-name` or `run-date` output layout
 - `force_notorch` (optional): Force non-PyTorch backend
+- `cpuonly` (optional): Force CPU-only inference (default: false)
 - `cuda_visible_devices`: GPU devices to use (default: "0,1,2,3")
+- `ensure_softmax` (optional): Ensure softmax is applied to model output (default: true)
 - `embeddings` (optional): Write penultimate-layer embeddings alongside scores
 - `embeddings_only` (optional): Skip the score CSV and write only embeddings
 - `embeddings_outfile` (optional): Custom embeddings filename

@@ -58,11 +58,13 @@ def _build_command_args(
         if onnx_inference_params.embeddings_only:
             command_args.append("--embeddings-only")
 
-    if not onnx_inference_params.ensure_softmax:
+    if onnx_inference_params.ensure_softmax is False:
         command_args.append("--skip-ensure-softmax")
 
     if onnx_inference_params.force_notorch:
         command_args.append("--notorch")
+    if onnx_inference_params.cpuonly:
+        command_args.append("--cpuonly")
 
     command_args.extend([model_container_path, "/app/inputs"])
     return command_args
@@ -98,21 +100,22 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
     logger.info("Running container with command: %s", " ".join(command_args))
 
     try:
-        container = client.containers.run(
-            onnx_image,
-            command_args,
-            volumes=volumes,
-            environment=environment,
-            device_requests=[
+        container_kwargs = {
+            "volumes": volumes,
+            "environment": environment,
+            "ipc_mode": "host",
+            "remove": True,
+            "detach": False,
+            "stdout": True,
+            "stderr": True,
+            "stream": True,
+        }
+        if not onnx_inference_params.cpuonly:
+            container_kwargs["device_requests"] = [
                 docker.types.DeviceRequest(device_ids=["all"], capabilities=[["gpu"]])
-            ],
-            ipc_mode="host",
-            remove=True,
-            detach=False,
-            stdout=True,
-            stderr=True,
-            stream=True,
-        )
+            ]
+
+        container = client.containers.run(onnx_image, command_args, **container_kwargs)
 
         for line in container:
             logger.info(line.decode("utf-8").rstrip())
