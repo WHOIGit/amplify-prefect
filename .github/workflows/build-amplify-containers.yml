@@ -15,7 +15,6 @@ on:
         options:
           - 'all'
           - 'amplify-ultralytics'
-          - 'amplify-onnx'
           - 'ifcb-zip-storage'
         default: 'all'
 
@@ -33,10 +32,6 @@ jobs:
           - name: amplify-ultralytics
             dockerfile: docker/amplify-ultralytics/Dockerfile
             tag: ghcr.io/whoigit/amplify-prefect/amplify-ultralytics:latest
-
-          - name: amplify-onnx
-            dockerfile: docker/onnx/Dockerfile
-            tag: ghcr.io/whoigit/amplify-prefect/amplify-onnx:latest
 
           - name: ifcb-zip-storage
             dockerfile: services/ifcb_zip_storage/Dockerfile
