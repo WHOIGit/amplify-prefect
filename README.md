@@ -81,7 +81,7 @@ Navigate to the Prefect UI in your browser at `http://{EXTERNAL_HOST_NAME}:4200`
 
 ### ONNX Inference Workflow
 
-The ONNX inference workflow requires the following parameters in the Prefect UI. It runs `ghcr.io/whoigit/ifcb-inference:latest` by default, and switches to `ghcr.io/whoigit/ifcb-inference-embeddings:latest` when embeddings are enabled.
+The ONNX inference workflow requires the following parameters in the Prefect UI. It runs `ghcr.io/whoigit/ifcb-inference:latest` by default, and switches to `ghcr.io/whoigit/ifcb-inference-embeddings:latest` when embeddings are enabled or score output uses `.h5`/`.parquet`.
 
 **ONNXInferenceParams:**
 - `model`: Path to the ONNX model file

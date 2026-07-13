@@ -6,10 +6,21 @@ from src.tasks.run_onnx_inference import run_onnx_inference
 
 DEFAULT_ONNX_IMAGE = "ghcr.io/whoigit/ifcb-inference:latest"
 EMBEDDINGS_ONNX_IMAGE = "ghcr.io/whoigit/ifcb-inference-embeddings:latest"
+OPTIONAL_OUTPUT_SUFFIXES = (".h5", ".parquet")
+
+
+def _score_output_needs_optional_deps(onnx_inference_params: ONNXInferenceParams) -> bool:
+    if onnx_inference_params.embeddings_only or onnx_inference_params.outfile is None:
+        return False
+    return onnx_inference_params.outfile.lower().endswith(OPTIONAL_OUTPUT_SUFFIXES)
 
 
 def _select_onnx_image(onnx_inference_params: ONNXInferenceParams) -> str:
-    if onnx_inference_params.embeddings or onnx_inference_params.embeddings_only:
+    if (
+        onnx_inference_params.embeddings
+        or onnx_inference_params.embeddings_only
+        or _score_output_needs_optional_deps(onnx_inference_params)
+    ):
         return EMBEDDINGS_ONNX_IMAGE
     return DEFAULT_ONNX_IMAGE
 
