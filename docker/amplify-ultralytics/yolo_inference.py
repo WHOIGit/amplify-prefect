@@ -6,8 +6,11 @@ from pathlib import Path
 from math import ceil
 import cv2
 from multiprocessing import Process
+from tempfile import TemporaryDirectory
 from ultralytics import YOLO
 import threading
+
+IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
 
 # ---- helpers ----
 def chunk(lst, n):
@@ -53,6 +56,38 @@ def mark_file_complete(manifest_file, file_path, lock):
     except Exception as e:
         print(f"ERROR: Could not write to manifest {manifest_file}: {e}", file=sys.stderr)
 
+def relative_to_root(file_path, src_root):
+    try:
+        return file_path.relative_to(src_root)
+    except ValueError:
+        return Path(file_path.name)
+
+def prepare_yolo_source(file_path, src_root, converted_root):
+    """
+    Ultralytics may load some TIFFs as one-channel tensors. Stage non-3-channel
+    image files as temporary 3-channel images before passing them to YOLO.
+    """
+    if file_path.suffix.lower() not in IMAGE_EXTS:
+        return str(file_path)
+
+    img = cv2.imread(str(file_path), cv2.IMREAD_UNCHANGED)
+    if img is None:
+        return str(file_path)
+
+    if img.ndim == 3 and img.shape[2] == 3:
+        return str(file_path)
+
+    converted = cv2.imread(str(file_path), cv2.IMREAD_COLOR)
+    if converted is None:
+        return str(file_path)
+
+    converted_path = converted_root / relative_to_root(file_path, src_root)
+    converted_path.parent.mkdir(parents=True, exist_ok=True)
+    if not cv2.imwrite(str(converted_path), converted):
+        raise RuntimeError(f"Could not write converted 3-channel image to {converted_path}")
+
+    return str(converted_path)
+
 def validate_media_file(file_path):
     """
     Validate that an image or video file is readable by OpenCV/YOLO.
@@ -70,12 +105,10 @@ def validate_media_file(file_path):
     except Exception as e:
         return False, f"unable to stat file: {e}", None
 
-    # Common image extensions - use cv2.imread for these
-    image_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
     file_ext = file_path.suffix.lower()
 
     try:
-        if file_ext in image_exts:
+        if file_ext in IMAGE_EXTS:
             # For images, try to read with cv2.imread
             img = cv2.imread(str(file_path))
             if img is None:
@@ -132,67 +165,74 @@ def process_files_on_gpu(gpu_id, files, completed_files, manifest_file, manifest
         skipped = 0
         errors = 0
 
-        for file_path in files:
-            file_str = str(file_path)
+        with TemporaryDirectory(prefix=f"yolo-gpu{gpu_id}-") as converted_dir:
+            converted_root = Path(converted_dir)
+            src_root = Path(args.source_root)
 
-            # Skip if already complete
-            if file_str in completed_files:
-                skipped += 1
-                print(f"GPU {gpu_id}: Skipping {file_path.name} (already complete)", file=sys.stderr)
-                continue
+            for file_path in files:
+                file_str = str(file_path)
 
-            try:
-                print(f"GPU {gpu_id}: Processing {file_path.name}...", file=sys.stderr)
+                # Skip if already complete
+                if file_str in completed_files:
+                    skipped += 1
+                    print(f"GPU {gpu_id}: Skipping {file_path.name} (already complete)", file=sys.stderr)
+                    continue
 
-                # Build prediction arguments
-                predict_kwargs = {
-                    'source': file_str,
-                    'device': gpu_id,
-                    'project': args.project,
-                    'name': f'gpu{gpu_id}',
-                    'exist_ok': True,
-                    'agnostic_nms': args.agnostic_nms,
-                    'iou': args.iou,
-                    'conf': args.conf,
-                    'imgsz': args.imgsz,
-                    'batch': args.batch,
-                    'half': args.half,
-                    'max_det': args.max_det,
-                    'vid_stride': args.vid_stride,
-                    'stream_buffer': args.stream_buffer,
-                    'visualize': args.visualize,
-                    'augment': args.augment,
-                    'retina_masks': args.retina_masks,
-                    'verbose': args.verbose,
-                    'show': args.show,
-                    'save': args.save,
-                    'save_txt': args.save_txt,
-                    'save_conf': args.save_conf,
-                    'save_crop': args.save_crop,
-                    'save_frames': args.save_frames,
-                    'show_labels': args.show_labels,
-                    'show_conf': args.show_conf,
-                    'show_boxes': args.show_boxes,
-                }
+                try:
+                    print(f"GPU {gpu_id}: Processing {file_path.name}...", file=sys.stderr)
+                    yolo_source = prepare_yolo_source(file_path, src_root, converted_root)
+                    if yolo_source != file_str:
+                        print(f"GPU {gpu_id}: Converted {file_path.name} to a temporary 3-channel image", file=sys.stderr)
 
-                # Add optional parameters
-                if classes_list is not None:
-                    predict_kwargs['classes'] = classes_list
-                if embed_list is not None:
-                    predict_kwargs['embed'] = embed_list
+                    # Build prediction arguments
+                    predict_kwargs = {
+                        'source': yolo_source,
+                        'device': gpu_id,
+                        'project': args.project,
+                        'name': f'gpu{gpu_id}',
+                        'exist_ok': True,
+                        'agnostic_nms': args.agnostic_nms,
+                        'iou': args.iou,
+                        'conf': args.conf,
+                        'imgsz': args.imgsz,
+                        'batch': args.batch,
+                        'half': args.half,
+                        'max_det': args.max_det,
+                        'vid_stride': args.vid_stride,
+                        'stream_buffer': args.stream_buffer,
+                        'visualize': args.visualize,
+                        'augment': args.augment,
+                        'retina_masks': args.retina_masks,
+                        'verbose': args.verbose,
+                        'show': args.show,
+                        'save': args.save,
+                        'save_txt': args.save_txt,
+                        'save_conf': args.save_conf,
+                        'save_crop': args.save_crop,
+                        'save_frames': args.save_frames,
+                        'show_labels': args.show_labels,
+                        'show_conf': args.show_conf,
+                        'show_boxes': args.show_boxes,
+                    }
 
-                # Run prediction
-                results = model.predict(**predict_kwargs)
+                    # Add optional parameters
+                    if classes_list is not None:
+                        predict_kwargs['classes'] = classes_list
+                    if embed_list is not None:
+                        predict_kwargs['embed'] = embed_list
 
-                # Mark as complete
-                mark_file_complete(manifest_file, file_path, manifest_lock)
-                processed += 1
-                print(f"GPU {gpu_id}: Completed {file_path.name}", file=sys.stderr)
+                    # Run prediction
+                    results = model.predict(**predict_kwargs)
 
-            except Exception as e:
-                errors += 1
-                print(f"GPU {gpu_id}: ERROR processing {file_path.name}: {e}", file=sys.stderr)
-                # Continue to next file instead of crashing
+                    # Mark as complete
+                    mark_file_complete(manifest_file, file_path, manifest_lock)
+                    processed += 1
+                    print(f"GPU {gpu_id}: Completed {file_path.name}", file=sys.stderr)
+
+                except Exception as e:
+                    errors += 1
+                    print(f"GPU {gpu_id}: ERROR processing {file_path.name}: {e}", file=sys.stderr)
+                    # Continue to next file instead of crashing
 
         print(f"GPU {gpu_id}: Finished - {processed} processed, {skipped} skipped, {errors} errors", file=sys.stderr)
 
@@ -335,4 +375,3 @@ else:
     print(f"One or more workers failed with exit code {exit_code}", file=sys.stderr)
 
 sys.exit(exit_code)
-
