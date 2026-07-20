@@ -44,6 +44,10 @@ def _build_command_args(
 
     if yolo_inference_params.ext:
         command_args.extend(["--ext", yolo_inference_params.ext])
+    if yolo_inference_params.max_files is not None:
+        command_args.extend(["--max-files", str(yolo_inference_params.max_files)])
+    if yolo_inference_params.skip_validation:
+        command_args.append("--skip-validation")
 
     return command_args
 

@@ -127,6 +127,8 @@ The YOLO inference workflow requires two parameter sets:
 - `name`: Name for prediction run subdirectory (optional)
 - `verbose`: Display detailed inference logs (default: true)
 - `ext`: File extension to scan for inference inputs (default: ".avi")
+- `max_files`: Maximum number of discovered files to process (optional)
+- `skip_validation`: Skip OpenCV validation before inference (default: false)
 
 **YOLOVisualizationParams:**
 - `show`: Display annotated images/videos in window (default: false)

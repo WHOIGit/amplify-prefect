@@ -57,6 +57,8 @@ class YOLOInferenceParams(BaseModel):
     name: str | None = Field(None, description="Name for prediction run subdirectory")
     verbose: bool = Field(True, description="Display detailed inference logs")
     ext: str = Field(".avi", description="File extension to scan for YOLO inference")
+    max_files: int | None = Field(None, description="Maximum number of discovered files to process")
+    skip_validation: bool = Field(False, description="Skip OpenCV validation before YOLO inference")
 
 
 class YOLOVisualizationParams(BaseModel):
