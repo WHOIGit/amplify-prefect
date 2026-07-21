@@ -3,42 +3,34 @@ import docker
 import os
 
 from prefect import get_run_logger
-from prefect_aws import AwsCredentials
 
 from src.prov import on_task_complete
-from src.params.params_extract_slim_features import ExtractSlimFeaturesParams
+from src.params.params_extract_slim_features import ExtractSlimFeaturesParams, SlimFeaturesSource
 
 
-@task(on_completion=[on_task_complete], log_prints=True)
-def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams):
-    """
-    Run extract_slim_features.py in a Docker container to extract IFCB features.
-    """
+MAIN_SLIM_FEATURES_IMAGE = "ghcr.io/whoigit/ifcb-features:latest"
 
-    client = docker.from_env()
-    logger = get_run_logger()
 
-    # Load AWS credentials from Prefect block
-    aws_credentials = AwsCredentials.load("vasts3-creds")
+def resolve_extract_slim_features_image(extract_features_params: ExtractSlimFeaturesParams) -> str:
+    if extract_features_params.extract_features_source == SlimFeaturesSource.main:
+        return MAIN_SLIM_FEATURES_IMAGE
 
-    # Set up volumes
-    volumes = {
-        extract_features_params.data_directory: {'bind': '/app/data', 'mode': 'ro'},
-        extract_features_params.output_directory: {'bind': '/app/output', 'mode': 'rw'}
-    }
+    if not extract_features_params.extract_features_image:
+        raise ValueError("extract_features_image is required when extract_features_source='storage'")
 
-    # Set up environment variables for AWS credentials
-    environment = {
-        'AWS_ACCESS_KEY_ID': aws_credentials.aws_access_key_id,
-        'AWS_SECRET_ACCESS_KEY': aws_credentials.aws_secret_access_key.get_secret_value(),
-        'PYTHONUNBUFFERED': '1',  # Disable Python output buffering for real-time logs
-    }
+    return extract_features_params.extract_features_image
 
-    # Build command arguments (ENTRYPOINT already includes "python extract_slim_features.py")
+
+def build_extract_slim_features_command(extract_features_params: ExtractSlimFeaturesParams) -> list[str]:
     command_args = [
         "/app/data",
         "/app/output"
     ]
+
+    if extract_features_params.extract_features_source == SlimFeaturesSource.main:
+        if extract_features_params.bins:
+            command_args.extend(["--bins"] + extract_features_params.bins)
+        return command_args
 
     # Add blob storage arguments
     command_args.extend([
@@ -46,6 +38,9 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
     ])
 
     if extract_features_params.blob_storage_mode == "s3":
+        if not extract_features_params.s3_bucket or not extract_features_params.s3_url:
+            raise ValueError("s3_bucket and s3_url are required when blob_storage_mode='s3'")
+
         command_args.extend([
             "--s3-bucket", extract_features_params.s3_bucket,
             "--s3-url", extract_features_params.s3_url,
@@ -59,6 +54,17 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
 
     if extract_features_params.feature_storage_mode == "vastdb":
         vastdb_url = extract_features_params.vastdb_url or extract_features_params.s3_url
+        if (
+            not extract_features_params.vastdb_bucket
+            or not extract_features_params.vastdb_schema
+            or not extract_features_params.vastdb_table
+            or not vastdb_url
+        ):
+            raise ValueError(
+                "vastdb_bucket, vastdb_schema, vastdb_table, and vastdb_url or s3_url "
+                "are required when feature_storage_mode='vastdb'"
+            )
+
         command_args.extend([
             "--vastdb-bucket", extract_features_params.vastdb_bucket,
             "--vastdb-schema", extract_features_params.vastdb_schema,
@@ -67,11 +73,14 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
         ])
 
     # Add optional bins flag if provided
-    if extract_features_params.bins is not None and len(extract_features_params.bins) > 0:
+    if extract_features_params.bins:
         command_args.extend(["--bins"] + extract_features_params.bins)
 
     # Add GPU batch processing arguments if enabled
-    if extract_features_params.batch_processing:
+    if (
+        extract_features_params.extract_features_source == SlimFeaturesSource.storage
+        and extract_features_params.batch_processing
+    ):
         command_args.extend([
             "--batch-processing",
             "--min-batch-size", str(extract_features_params.min_batch_size),
@@ -80,11 +89,52 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
         if extract_features_params.gpu_device is not None:
             command_args.extend(["--gpu-device", str(extract_features_params.gpu_device)])
 
+    return command_args
+
+
+@task(on_completion=[on_task_complete], log_prints=True)
+def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams):
+    """
+    Run extract_slim_features.py in a Docker container to extract IFCB features.
+    """
+
+    client = docker.from_env()
+    logger = get_run_logger()
+    extract_features_image = resolve_extract_slim_features_image(extract_features_params)
+
+    # Set up volumes
+    volumes = {
+        extract_features_params.data_directory: {'bind': '/app/data', 'mode': 'ro'},
+        extract_features_params.output_directory: {'bind': '/app/output', 'mode': 'rw'}
+    }
+
+    # Set up environment variables
+    environment = {
+        'PYTHONUNBUFFERED': '1',  # Disable Python output buffering for real-time logs
+    }
+
+    if extract_features_params.extract_features_source == SlimFeaturesSource.storage:
+        from prefect_aws import AwsCredentials
+
+        # Load AWS credentials from Prefect block for the storage-capable image.
+        aws_credentials = AwsCredentials.load("vasts3-creds")
+        environment.update({
+            'AWS_ACCESS_KEY_ID': aws_credentials.aws_access_key_id,
+            'AWS_SECRET_ACCESS_KEY': aws_credentials.aws_secret_access_key.get_secret_value(),
+        })
+
+    # Build command arguments (ENTRYPOINT already includes "python extract_slim_features.py")
+    command_args = build_extract_slim_features_command(extract_features_params)
+
     logger.info(f'Running container with command: {" ".join(command_args)}')
+    logger.info(f'Using Docker image: {extract_features_image}')
 
     # Configure GPU device requests if batch processing is enabled
     device_requests = []
-    if extract_features_params.batch_processing:
+    if (
+        extract_features_params.extract_features_source == SlimFeaturesSource.storage
+        and extract_features_params.batch_processing
+    ):
         if extract_features_params.gpu_device is not None:
             # Request specific GPU device
             device_requests = [docker.types.DeviceRequest(
@@ -106,7 +156,7 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
 
         # Run container in detached mode to stream logs properly
         container = client.containers.run(
-            extract_features_params.extract_features_image,
+            extract_features_image,
             command_args,
             volumes=volumes,
             environment=environment,

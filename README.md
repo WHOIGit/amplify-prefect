@@ -75,6 +75,13 @@ source .env
 python src/flows/ifcb_training.py
 ```
 
+**For Slim Feature Extraction:**
+```bash
+source .venv/bin/activate
+source .env
+python src/flows/extract_slim_features.py
+```
+
 ## Using the Workflows
 
 Navigate to the Prefect UI in your browser at `http://{EXTERNAL_HOST_NAME}:4200`
@@ -154,6 +161,25 @@ The IFCB flow metric training workflow requires the following parameters in the 
 - `aspect_ratio`: Camera frame aspect ratio (width/height, default: 1.36)
 - `chunk_size`: Number of PIDs to process in each chunk (default: 100)
 - `model_filename`: Filename for the trained model (default: "classifier.pkl")
+
+### Slim Feature Extraction Workflow
+
+The slim feature extraction workflow supports two extraction sources:
+
+- `storage`: preserves the existing S3/VastDB-capable flow. This mode uses `extract_features_image` and supports blob storage, feature storage, and GPU batch-processing parameters.
+- `main`: runs `ghcr.io/whoigit/ifcb-features:latest`. This mode writes local `<bin>_features_v4.csv` and `<bin>_blobs_v4.zip` files in `output_directory` and only passes `data_directory`, `output_directory`, and optional `bins` to the container.
+
+**ExtractSlimFeaturesParams:**
+- `extract_features_source`: Choose `storage` or `main` (default: `storage`)
+- `extract_features_image`: Docker image for `storage` mode; ignored in `main` mode
+- `data_directory`: Directory containing IFCB data
+- `output_directory`: Directory where local outputs are written
+- `bins` (optional): Specific bin names to process
+- `blob_storage_mode`: Blob storage mode for `storage` source, either `local` or `s3`
+- `s3_bucket`, `s3_url`, `s3_prefix`: S3 settings for `storage` source
+- `feature_storage_mode`: Feature storage mode for `storage` source, either `local` or `vastdb`
+- `vastdb_bucket`, `vastdb_schema`, `vastdb_table`, `vastdb_url`: VastDB settings for `storage` source
+- `batch_processing`, `min_batch_size`, `max_batch_size`, `gpu_device`: GPU batch-processing settings for `storage` source
 
 ## YOLO Training Data Format
 

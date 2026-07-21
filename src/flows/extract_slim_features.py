@@ -3,7 +3,7 @@ import os
 
 from src.params.params_extract_slim_features import ExtractSlimFeaturesParams
 from src.tasks.pull_images import pull_images
-from src.tasks.run_extract_slim_features import run_extract_slim_features
+from src.tasks.run_extract_slim_features import resolve_extract_slim_features_image, run_extract_slim_features
 
 
 @flow(name="Extract Slim Features", log_prints=True)
@@ -14,9 +14,8 @@ def extract_slim_features_flow(extract_features_params: ExtractSlimFeaturesParam
     This flow:
     1. Creates the output directory if it doesn't exist (for local storage modes)
     2. Pulls the latest Docker image for feature extraction
-    3. Runs extract_slim_features.py in a Docker container with AWS credentials
-    4. Extracts features and saves to VastDB (default) or local CSV
-    5. Saves blob images to S3 (default) or local ZIP files
+    3. Runs extract_slim_features.py in a Docker container
+    4. Extracts features through either the storage-capable image or the main-branch image
     """
     
     logger = get_run_logger()
@@ -25,9 +24,11 @@ def extract_slim_features_flow(extract_features_params: ExtractSlimFeaturesParam
     os.makedirs(extract_features_params.output_directory, exist_ok=True)
     logger.info(f"Output directory: {extract_features_params.output_directory}")
 
+    extract_features_image = resolve_extract_slim_features_image(extract_features_params)
+
     # Pull the latest image
-    logger.info(f"Using Docker image: {extract_features_params.extract_features_image}")
-    pull_images([extract_features_params.extract_features_image])
+    logger.info(f"Using Docker image: {extract_features_image}")
+    pull_images([extract_features_image])
     
     # Log processing details
     if extract_features_params.bins:

@@ -1,10 +1,28 @@
+from enum import Enum
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
 
+class SlimFeaturesSource(str, Enum):
+    storage = "storage"
+    main = "main"
+
+
 class ExtractSlimFeaturesParams(BaseModel):
+    extract_features_source: SlimFeaturesSource = Field(
+        SlimFeaturesSource.storage,
+        description=(
+            "Feature extraction implementation to run. "
+            "'storage' preserves the existing S3/VastDB-capable flow; "
+            "'main' runs ghcr.io/whoigit/ifcb-features:latest with local CSV/ZIP outputs."
+        ),
+    )
+
     # Docker image
-    extract_features_image: str = Field(..., description="Docker image for feature extraction")
+    extract_features_image: Optional[str] = Field(
+        None,
+        description="Docker image for storage feature extraction mode. Ignored when extract_features_source='main'.",
+    )
 
     data_directory: str = Field(..., description="Path to the directory containing IFCB data")
     output_directory: str = Field(..., description="Path to the directory to save output (for local storage modes)")
