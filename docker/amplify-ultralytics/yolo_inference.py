@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from math import ceil
 from multiprocessing import get_context
+from os import cpu_count
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -24,6 +26,12 @@ def chunk(lst, n):
         return [[] for _ in range(n)]
     size = ceil(length / n)
     return [lst[i * size : (i + 1) * size] for i in range(n)]
+
+
+def batched(items, size):
+    """Yield successive lists of at most `size` items."""
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
 
 
 def parse_int_list(s):
@@ -52,12 +60,16 @@ def load_completed_files(manifest_file):
         return set()
 
 
-def mark_file_complete(manifest_file, file_path, lock):
-    """Append a file path to the completion manifest."""
+def mark_files_complete(manifest_file, file_paths, lock):
+    """Append a batch of completed file paths to the completion manifest."""
+    if not file_paths:
+        return
+    payload = "".join(f"{file_path}\n" for file_path in file_paths)
     try:
         with lock:
             with open(manifest_file, "a") as f:
-                f.write(str(file_path) + "\n")
+                f.write(payload)
+                f.flush()
     except Exception as e:
         eprint(f"ERROR: Could not write to manifest {manifest_file}: {e}")
 
@@ -145,6 +157,175 @@ def validate_media_file(file_path):
         return False, f"validation error: {e}", None
 
 
+def resolve_validation_workers(validation_workers, file_count):
+    if file_count <= 0:
+        return 1
+    if validation_workers and validation_workers > 0:
+        return min(validation_workers, file_count)
+    return min(file_count, max(1, min(cpu_count() or 1, 32)))
+
+
+def build_predict_kwargs(gpu_id, args, classes_list, embed_list):
+    """Build the keyword arguments shared by every predict call on this GPU."""
+    predict_kwargs = {
+        "device": gpu_id,
+        "project": args.project,
+        "name": f"gpu{gpu_id}",
+        "exist_ok": True,
+        "agnostic_nms": args.agnostic_nms,
+        "iou": args.iou,
+        "conf": args.conf,
+        "imgsz": args.imgsz,
+        "batch": args.batch,
+        "half": args.half,
+        "max_det": args.max_det,
+        "vid_stride": args.vid_stride,
+        "stream_buffer": args.stream_buffer,
+        "visualize": args.visualize,
+        "augment": args.augment,
+        "retina_masks": args.retina_masks,
+        "verbose": args.verbose,
+        "show": args.show,
+        "save": args.save,
+        "save_txt": args.save_txt,
+        "save_conf": args.save_conf,
+        "save_crop": args.save_crop,
+        "save_frames": args.save_frames,
+        "show_labels": args.show_labels,
+        "show_conf": args.show_conf,
+        "show_boxes": args.show_boxes,
+    }
+
+    if classes_list is not None:
+        predict_kwargs["classes"] = classes_list
+    if embed_list is not None:
+        predict_kwargs["embed"] = embed_list
+
+    return predict_kwargs
+
+
+def stage_batch(files, src_root, converted_root, workers, gpu_id):
+    """
+    Stage a batch of files for YOLO, converting non-3-channel images as needed.
+
+    Returns:
+        tuple: (sources, source_to_file, staging_errors) where sources is the list
+        of paths to hand to YOLO and source_to_file maps each back to its original.
+    """
+
+    def stage_one(file_path):
+        try:
+            return file_path, prepare_yolo_source(file_path, src_root, converted_root), None
+        except Exception as e:
+            return file_path, None, e
+
+    if workers > 1 and len(files) > 1:
+        with ThreadPoolExecutor(max_workers=min(workers, len(files))) as executor:
+            staged = list(executor.map(stage_one, files))
+    else:
+        staged = [stage_one(file_path) for file_path in files]
+
+    sources = []
+    source_to_file = {}
+    staging_errors = []
+    converted = 0
+
+    for file_path, source, error in staged:
+        if error is not None:
+            eprint(f"GPU {gpu_id}: ERROR staging {file_path.name}: {error}")
+            staging_errors.append(file_path)
+            continue
+        sources.append(source)
+        source_to_file[source] = file_path
+        if source != str(file_path):
+            converted += 1
+
+    if converted:
+        eprint(
+            f"GPU {gpu_id}: Converted {converted}/{len(files)} images "
+            "to temporary 3-channel copies"
+        )
+
+    return sources, source_to_file, staging_errors
+
+
+def run_predict(model, source, predict_kwargs):
+    """
+    Run one predict call, consuming the streaming generator.
+
+    Streaming keeps Results (which hold a full-size orig_img each) from
+    accumulating in memory across a large batch.
+    """
+    seen = 0
+    for _ in model.predict(source=source, stream=True, **predict_kwargs):
+        seen += 1
+    return seen
+
+
+def process_batch(
+    model,
+    files,
+    args,
+    src_root,
+    predict_kwargs,
+    gpu_id,
+    manifest_file,
+    manifest_lock,
+):
+    """
+    Run a single predict call over a batch of files.
+
+    Ultralytics recomputes its "N labels saved" summary by globbing the whole
+    output directory once per predict call, so batching files into one call is
+    what keeps that cost from scaling with the number of files. The batch is
+    handed over as a .txt listing rather than a Python list: a list source is
+    routed to LoadPilAndNumpy, which reads every image into memory and treats
+    the whole list as one GPU batch, while a .txt is expanded by
+    LoadImagesAndVideos with normal `batch` streaming and video support.
+
+    Returns:
+        tuple: (processed, errors)
+    """
+    with TemporaryDirectory(prefix=f"yolo-gpu{gpu_id}-") as batch_dir:
+        batch_root = Path(batch_dir)
+        converted_root = batch_root / "converted"
+        converted_root.mkdir()
+
+        sources, source_to_file, staging_errors = stage_batch(
+            files, src_root, converted_root, args.convert_workers, gpu_id
+        )
+        errors = len(staging_errors)
+
+        if not sources:
+            return 0, errors
+
+        source_list_file = batch_root / "sources.txt"
+        source_list_file.write_text("".join(f"{source}\n" for source in sources))
+
+        try:
+            run_predict(model, str(source_list_file), predict_kwargs)
+            completed = [source_to_file[source] for source in sources]
+        except Exception as e:
+            eprint(
+                f"GPU {gpu_id}: Batch of {len(sources)} files failed ({e}); "
+                "retrying file by file"
+            )
+            completed = []
+            for source in sources:
+                file_path = source_to_file[source]
+                try:
+                    run_predict(model, source, predict_kwargs)
+                    completed.append(file_path)
+                except Exception as file_error:
+                    errors += 1
+                    eprint(
+                        f"GPU {gpu_id}: ERROR processing {file_path.name}: {file_error}"
+                    )
+
+        mark_files_complete(manifest_file, completed, manifest_lock)
+        return len(completed), errors
+
+
 def process_files_on_gpu(
     gpu_id,
     files,
@@ -160,79 +341,42 @@ def process_files_on_gpu(
     try:
         eprint(f"GPU {gpu_id}: Loading model {args.model}...")
         model = YOLO(args.model)
-        eprint(f"GPU {gpu_id}: Model loaded, processing {len(files)} files")
+
+        pending = [f for f in files if str(f) not in completed_files]
+        skipped = len(files) - len(pending)
+        eprint(
+            f"GPU {gpu_id}: Model loaded, processing {len(pending)} files "
+            f"({skipped} already complete)"
+        )
+
+        predict_kwargs = build_predict_kwargs(gpu_id, args, classes_list, embed_list)
+        src_root = Path(args.source_root)
+        files_per_call = max(1, args.files_per_call)
+        total_batches = ceil(len(pending) / files_per_call) if pending else 0
 
         processed = 0
-        skipped = 0
         errors = 0
 
-        with TemporaryDirectory(prefix=f"yolo-gpu{gpu_id}-") as converted_dir:
-            converted_root = Path(converted_dir)
-            src_root = Path(args.source_root)
-
-            for file_path in files:
-                file_str = str(file_path)
-
-                if file_str in completed_files:
-                    skipped += 1
-                    eprint(f"GPU {gpu_id}: Skipping {file_path.name} (already complete)")
-                    continue
-
-                try:
-                    eprint(f"GPU {gpu_id}: Processing {file_path.name}...")
-                    yolo_source = prepare_yolo_source(
-                        file_path, src_root, converted_root
-                    )
-                    if yolo_source != file_str:
-                        eprint(
-                            f"GPU {gpu_id}: Converted {file_path.name} "
-                            "to a temporary 3-channel image"
-                        )
-
-                    predict_kwargs = {
-                        "source": yolo_source,
-                        "device": gpu_id,
-                        "project": args.project,
-                        "name": f"gpu{gpu_id}",
-                        "exist_ok": True,
-                        "agnostic_nms": args.agnostic_nms,
-                        "iou": args.iou,
-                        "conf": args.conf,
-                        "imgsz": args.imgsz,
-                        "batch": args.batch,
-                        "half": args.half,
-                        "max_det": args.max_det,
-                        "vid_stride": args.vid_stride,
-                        "stream_buffer": args.stream_buffer,
-                        "visualize": args.visualize,
-                        "augment": args.augment,
-                        "retina_masks": args.retina_masks,
-                        "verbose": args.verbose,
-                        "show": args.show,
-                        "save": args.save,
-                        "save_txt": args.save_txt,
-                        "save_conf": args.save_conf,
-                        "save_crop": args.save_crop,
-                        "save_frames": args.save_frames,
-                        "show_labels": args.show_labels,
-                        "show_conf": args.show_conf,
-                        "show_boxes": args.show_boxes,
-                    }
-
-                    if classes_list is not None:
-                        predict_kwargs["classes"] = classes_list
-                    if embed_list is not None:
-                        predict_kwargs["embed"] = embed_list
-
-                    model.predict(**predict_kwargs)
-
-                    mark_file_complete(manifest_file, file_path, manifest_lock)
-                    processed += 1
-                    eprint(f"GPU {gpu_id}: Completed {file_path.name}")
-
-                except Exception as e:
-                    errors += 1
-                    eprint(f"GPU {gpu_id}: ERROR processing {file_path.name}: {e}")
+        for index, batch in enumerate(batched(pending, files_per_call), start=1):
+            eprint(
+                f"GPU {gpu_id}: Batch {index}/{total_batches} ({len(batch)} files)..."
+            )
+            batch_processed, batch_errors = process_batch(
+                model,
+                batch,
+                args,
+                src_root,
+                predict_kwargs,
+                gpu_id,
+                manifest_file,
+                manifest_lock,
+            )
+            processed += batch_processed
+            errors += batch_errors
+            eprint(
+                f"GPU {gpu_id}: Batch {index}/{total_batches} done - "
+                f"{processed}/{len(pending)} files complete, {errors} errors"
+            )
 
         eprint(
             f"GPU {gpu_id}: Finished - {processed} processed, "
@@ -240,7 +384,7 @@ def process_files_on_gpu(
         )
         if errors:
             raise RuntimeError(f"GPU {gpu_id} had {errors} per-file errors")
-        if processed == 0 and skipped < len(files):
+        if processed == 0 and pending:
             raise RuntimeError(
                 f"GPU {gpu_id} processed 0 of {len(files)} assigned files"
             )
@@ -299,6 +443,27 @@ def parse_args():
         action="store_true",
         help="Skip OpenCV validation before inference",
     )
+    parser.add_argument(
+        "--validation-workers",
+        type=int,
+        default=0,
+        help="Parallel OpenCV validation workers; 0 chooses an automatic worker count",
+    )
+    parser.add_argument(
+        "--files-per-call",
+        type=int,
+        default=1000,
+        help=(
+            "Files handed to each YOLO predict call. Ultralytics rescans the whole "
+            "output directory once per call, so larger values amortize that cost"
+        ),
+    )
+    parser.add_argument(
+        "--convert-workers",
+        type=int,
+        default=8,
+        help="Threads used to stage 3-channel image copies before inference",
+    )
 
     return parser.parse_args()
 
@@ -311,24 +476,33 @@ def discover_files(args):
     return discovered_files
 
 
-def validate_files(discovered_files, skip_validation):
+def validate_one_file(file_path):
+    is_valid, reason, frame_count = validate_media_file(file_path)
+    return file_path, is_valid, reason, frame_count
+
+
+def validate_files(discovered_files, skip_validation, validation_workers):
     if skip_validation:
         eprint(f"Found {len(discovered_files)} files, skipping validation")
         return [(file_path, None) for file_path in discovered_files], 0
 
-    eprint(f"Found {len(discovered_files)} files, validating...")
+    workers = resolve_validation_workers(validation_workers, len(discovered_files))
+    eprint(f"Found {len(discovered_files)} files, validating with {workers} workers...")
     valid_files_with_metadata = []
     validation_skipped = 0
-    for idx, file_path in enumerate(discovered_files, start=1):
-        if idx % 10000 == 0:
-            eprint(f"Validated {idx}/{len(discovered_files)} files...")
 
-        is_valid, reason, frame_count = validate_media_file(file_path)
-        if is_valid:
-            valid_files_with_metadata.append((file_path, frame_count))
-        else:
-            validation_skipped += 1
-            eprint(f"WARNING: Skipping {file_path}: {reason}")
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        results = executor.map(validate_one_file, discovered_files)
+
+        for idx, (file_path, is_valid, reason, frame_count) in enumerate(results, start=1):
+            if idx % 10000 == 0:
+                eprint(f"Validated {idx}/{len(discovered_files)} files...")
+
+            if is_valid:
+                valid_files_with_metadata.append((file_path, frame_count))
+            else:
+                validation_skipped += 1
+                eprint(f"WARNING: Skipping {file_path}: {reason}")
 
     return valid_files_with_metadata, validation_skipped
 
@@ -347,7 +521,7 @@ def main():
         return 3
 
     valid_files_with_metadata, validation_skipped = validate_files(
-        discovered_files, args.skip_validation
+        discovered_files, args.skip_validation, args.validation_workers
     )
     if not valid_files_with_metadata:
         eprint(

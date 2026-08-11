@@ -136,6 +136,7 @@ The YOLO inference workflow requires two parameter sets:
 - `ext`: File extension to scan for inference inputs (default: ".avi")
 - `max_files`: Maximum number of discovered files to process (optional)
 - `skip_validation`: Skip OpenCV validation before inference (default: false)
+- `validation_workers`: Parallel OpenCV validation workers; 0 chooses an automatic worker count (default: 0)
 
 **YOLOVisualizationParams:**
 - `show`: Display annotated images/videos in window (default: false)

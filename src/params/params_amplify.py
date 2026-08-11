@@ -59,6 +59,9 @@ class YOLOInferenceParams(BaseModel):
     ext: str = Field(".avi", description="File extension to scan for YOLO inference")
     max_files: int | None = Field(None, description="Maximum number of discovered files to process")
     skip_validation: bool = Field(False, description="Skip OpenCV validation before YOLO inference")
+    validation_workers: int = Field(0, description="Parallel OpenCV validation workers; 0 uses an automatic worker count")
+    files_per_call: int = Field(1000, description="Files handed to each YOLO predict call; larger values amortize Ultralytics' per-call output directory rescan")
+    convert_workers: int = Field(8, description="Threads used to stage 3-channel image copies before inference")
 
 
 class YOLOVisualizationParams(BaseModel):

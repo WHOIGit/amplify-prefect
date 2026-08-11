@@ -48,6 +48,12 @@ def _build_command_args(
         command_args.extend(["--max-files", str(yolo_inference_params.max_files)])
     if yolo_inference_params.skip_validation:
         command_args.append("--skip-validation")
+    if yolo_inference_params.validation_workers is not None:
+        command_args.extend(["--validation-workers", str(yolo_inference_params.validation_workers)])
+    if yolo_inference_params.files_per_call is not None:
+        command_args.extend(["--files-per-call", str(yolo_inference_params.files_per_call)])
+    if yolo_inference_params.convert_workers is not None:
+        command_args.extend(["--convert-workers", str(yolo_inference_params.convert_workers)])
 
     return command_args
 
