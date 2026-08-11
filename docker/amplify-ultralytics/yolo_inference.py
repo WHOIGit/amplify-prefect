@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 import argparse
+import shutil
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from math import ceil
 from multiprocessing import get_context
 from os import cpu_count
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import gettempdir, mkdtemp
 
 import cv2
+
+STAGING_PREFIX = "yolo-gpu"
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
 
@@ -262,18 +265,69 @@ def run_predict(model, source, predict_kwargs):
     return seen
 
 
-def process_batch(
-    model,
-    files,
-    args,
-    src_root,
-    predict_kwargs,
-    gpu_id,
-    manifest_file,
-    manifest_lock,
-):
+class StagedBatch:
     """
-    Run a single predict call over a batch of files.
+    A batch staged on disk and ready to hand to predict().
+
+    Staging happens on a prefetch thread while the GPU works on the previous
+    batch, so a staged batch outlives the call that created it. That rules out
+    a `with TemporaryDirectory(...)` scope: whoever consumes the batch owns
+    cleanup() and must call it. Each staged batch is roughly 12 MB per file on
+    disk, so failing to release one promptly is expensive.
+    """
+
+    def __init__(self, files, tmpdir, listing, sources, source_to_file, staging_errors):
+        self.files = files
+        self.tmpdir = tmpdir
+        self.listing = listing
+        self.sources = sources
+        self.source_to_file = source_to_file
+        self.staging_errors = staging_errors
+
+    def cleanup(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+
+def sweep_stale_staging_dirs(gpu_id):
+    """Remove staging directories orphaned by a previously killed container."""
+    removed = 0
+    for stale in Path(gettempdir()).glob(f"{STAGING_PREFIX}{gpu_id}-*"):
+        shutil.rmtree(stale, ignore_errors=True)
+        removed += 1
+    if removed:
+        eprint(f"GPU {gpu_id}: Removed {removed} stale staging directories")
+
+
+def stage_batch_to_disk(files, src_root, gpu_id, convert_workers):
+    """
+    Stage one batch into a fresh temporary directory.
+
+    Runs on the prefetch thread. On any failure the partial directory is
+    removed before propagating, so a failed batch cannot leak ~12 GB.
+    """
+    tmpdir = Path(mkdtemp(prefix=f"{STAGING_PREFIX}{gpu_id}-"))
+    try:
+        converted_root = tmpdir / "converted"
+        converted_root.mkdir()
+
+        sources, source_to_file, staging_errors = stage_batch(
+            files, src_root, converted_root, convert_workers, gpu_id
+        )
+
+        listing = tmpdir / "sources.txt"
+        listing.write_text("".join(f"{source}\n" for source in sources))
+
+        return StagedBatch(
+            files, tmpdir, listing, sources, source_to_file, staging_errors
+        )
+    except BaseException:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise
+
+
+def run_staged_batch(model, staged, predict_kwargs, gpu_id, manifest_file, manifest_lock):
+    """
+    Run a single predict call over an already-staged batch.
 
     Ultralytics recomputes its "N labels saved" summary by globbing the whole
     output directory once per predict call, so batching files into one call is
@@ -286,44 +340,31 @@ def process_batch(
     Returns:
         tuple: (processed, errors)
     """
-    with TemporaryDirectory(prefix=f"yolo-gpu{gpu_id}-") as batch_dir:
-        batch_root = Path(batch_dir)
-        converted_root = batch_root / "converted"
-        converted_root.mkdir()
+    errors = len(staged.staging_errors)
 
-        sources, source_to_file, staging_errors = stage_batch(
-            files, src_root, converted_root, args.convert_workers, gpu_id
+    if not staged.sources:
+        return 0, errors
+
+    try:
+        run_predict(model, str(staged.listing), predict_kwargs)
+        completed = [staged.source_to_file[source] for source in staged.sources]
+    except Exception as e:
+        eprint(
+            f"GPU {gpu_id}: Batch of {len(staged.sources)} files failed ({e}); "
+            "retrying file by file"
         )
-        errors = len(staging_errors)
+        completed = []
+        for source in staged.sources:
+            file_path = staged.source_to_file[source]
+            try:
+                run_predict(model, source, predict_kwargs)
+                completed.append(file_path)
+            except Exception as file_error:
+                errors += 1
+                eprint(f"GPU {gpu_id}: ERROR processing {file_path.name}: {file_error}")
 
-        if not sources:
-            return 0, errors
-
-        source_list_file = batch_root / "sources.txt"
-        source_list_file.write_text("".join(f"{source}\n" for source in sources))
-
-        try:
-            run_predict(model, str(source_list_file), predict_kwargs)
-            completed = [source_to_file[source] for source in sources]
-        except Exception as e:
-            eprint(
-                f"GPU {gpu_id}: Batch of {len(sources)} files failed ({e}); "
-                "retrying file by file"
-            )
-            completed = []
-            for source in sources:
-                file_path = source_to_file[source]
-                try:
-                    run_predict(model, source, predict_kwargs)
-                    completed.append(file_path)
-                except Exception as file_error:
-                    errors += 1
-                    eprint(
-                        f"GPU {gpu_id}: ERROR processing {file_path.name}: {file_error}"
-                    )
-
-        mark_files_complete(manifest_file, completed, manifest_lock)
-        return len(completed), errors
+    mark_files_complete(manifest_file, completed, manifest_lock)
+    return len(completed), errors
 
 
 def process_files_on_gpu(
@@ -339,6 +380,8 @@ def process_files_on_gpu(
     from ultralytics import YOLO
 
     try:
+        sweep_stale_staging_dirs(gpu_id)
+
         eprint(f"GPU {gpu_id}: Loading model {args.model}...")
         model = YOLO(args.model)
 
@@ -352,31 +395,69 @@ def process_files_on_gpu(
         predict_kwargs = build_predict_kwargs(gpu_id, args, classes_list, embed_list)
         src_root = Path(args.source_root)
         files_per_call = max(1, args.files_per_call)
-        total_batches = ceil(len(pending) / files_per_call) if pending else 0
+        batches = list(batched(pending, files_per_call))
+        total_batches = len(batches)
 
         processed = 0
         errors = 0
 
-        for index, batch in enumerate(batched(pending, files_per_call), start=1):
-            eprint(
-                f"GPU {gpu_id}: Batch {index}/{total_batches} ({len(batch)} files)..."
-            )
-            batch_processed, batch_errors = process_batch(
-                model,
-                batch,
-                args,
-                src_root,
-                predict_kwargs,
-                gpu_id,
-                manifest_file,
-                manifest_lock,
-            )
-            processed += batch_processed
-            errors += batch_errors
-            eprint(
-                f"GPU {gpu_id}: Batch {index}/{total_batches} done - "
-                f"{processed}/{len(pending)} files complete, {errors} errors"
-            )
+        # Stage batch N+1 on a background thread while the GPU runs batch N.
+        # cv2 and CUDA both release the GIL, so the two genuinely overlap.
+        # Depth is fixed at one: staging is faster than inference once it runs
+        # concurrently, and each batch in flight costs ~12 MB per file on disk.
+        with ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix=f"stage-gpu{gpu_id}"
+        ) as stager:
+
+            def submit(index):
+                if index >= total_batches:
+                    return None
+                return stager.submit(
+                    stage_batch_to_disk,
+                    batches[index],
+                    src_root,
+                    gpu_id,
+                    args.convert_workers,
+                )
+
+            ahead = submit(0)
+
+            for index, batch in enumerate(batches, start=1):
+                eprint(
+                    f"GPU {gpu_id}: Batch {index}/{total_batches} ({len(batch)} files)..."
+                )
+
+                try:
+                    staged = ahead.result()
+                except Exception as e:
+                    # A staging failure must not abort a multi-hour run.
+                    eprint(f"GPU {gpu_id}: ERROR staging batch {index}: {e}")
+                    errors += len(batch)
+                    ahead = submit(index)
+                    continue
+
+                # Kick off the next batch before touching the GPU; this call is
+                # what creates the overlap.
+                ahead = submit(index)
+
+                try:
+                    batch_processed, batch_errors = run_staged_batch(
+                        model,
+                        staged,
+                        predict_kwargs,
+                        gpu_id,
+                        manifest_file,
+                        manifest_lock,
+                    )
+                    processed += batch_processed
+                    errors += batch_errors
+                finally:
+                    staged.cleanup()
+
+                eprint(
+                    f"GPU {gpu_id}: Batch {index}/{total_batches} done - "
+                    f"{processed}/{len(pending)} files complete, {errors} errors"
+                )
 
         eprint(
             f"GPU {gpu_id}: Finished - {processed} processed, "
