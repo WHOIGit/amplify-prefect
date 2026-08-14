@@ -28,6 +28,7 @@ def build_extract_slim_features_command(extract_features_params: ExtractSlimFeat
     ]
 
     if extract_features_params.extract_features_source == SlimFeaturesSource.main:
+        command_args.extend(["--workers", str(extract_features_params.workers)])
         if extract_features_params.bins:
             command_args.extend(["--bins"] + extract_features_params.bins)
         return command_args
@@ -95,7 +96,10 @@ def build_extract_slim_features_command(extract_features_params: ExtractSlimFeat
 @task(on_completion=[on_task_complete], log_prints=True)
 def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams):
     """
-    Run extract_slim_features.py in a Docker container to extract IFCB features.
+    Run IFCB feature extraction in a Docker container.
+
+    The main image runs extract_features_batch.py, which writes the MATLAB-compatible
+    day-based layout under the output directory; the storage image is unchanged.
     """
 
     client = docker.from_env()
@@ -123,7 +127,8 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
             'AWS_SECRET_ACCESS_KEY': aws_credentials.aws_secret_access_key.get_secret_value(),
         })
 
-    # Build command arguments (ENTRYPOINT already includes "python extract_slim_features.py")
+    # Build command arguments; each image's ENTRYPOINT already supplies the script
+    # (extract_features_batch.py for the main image).
     command_args = build_extract_slim_features_command(extract_features_params)
 
     logger.info(f'Running container with command: {" ".join(command_args)}')

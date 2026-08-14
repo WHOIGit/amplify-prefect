@@ -14,7 +14,11 @@ class ExtractSlimFeaturesParams(BaseModel):
         description=(
             "Feature extraction implementation to run. "
             "'storage' preserves the existing S3/VastDB-capable flow; "
-            "'main' runs ghcr.io/whoigit/ifcb-features:latest with local CSV/ZIP outputs."
+            "'main' runs extract_features_batch.py from ghcr.io/whoigit/ifcb-features:latest, "
+            "writing MATLAB-compatible day-based output: "
+            "features/<day>/<bin>_features_v4.csv, "
+            "features/<day>/multiblob/<bin>_multiblob_v4.csv, "
+            "blobs/<day>/<bin>_blobs_v4.zip."
         ),
     )
 
@@ -40,6 +44,9 @@ class ExtractSlimFeaturesParams(BaseModel):
     vastdb_schema: Optional[str] = Field(None, description="VastDB schema name (required when feature_storage_mode=vastdb)")
     vastdb_table: Optional[str] = Field(None, description="VastDB table name (required when feature_storage_mode=vastdb)")
     vastdb_url: Optional[str] = Field(None, description="VastDB endpoint URL (defaults to s3_url if not provided)")
+
+    # Main-branch (extract_features_batch.py) options
+    workers: int = Field(4, description="Parallel worker processes for extract_features_batch.py. Only used when extract_features_source='main'")
 
     # GPU batch processing options
     batch_processing: bool = Field(False, description="Enable GPU-accelerated batch processing for phase congruency")
