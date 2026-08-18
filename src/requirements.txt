@@ -68,7 +68,7 @@ pandas==2.3.1
 pathspec==0.12.1
 pendulum==3.2.0
 pillow==12.2.0
-prefect==3.6.27
+prefect==3.6.28.dev2
 prometheus_client==0.21.1
 propcache==0.3.1
 provenance-client @ git+https://github.com/WHOIGit/amplify-provenance-client.git@39e4570691c658e36fd0f4b6c72a84e421902fdd
