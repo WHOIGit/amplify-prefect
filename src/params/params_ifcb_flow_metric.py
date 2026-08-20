@@ -52,6 +52,12 @@ class IFCBFeatureConfig(BaseModel):
     # Temporal Features
     use_t_y_var: bool = Field(True, description="Use variance of rolling mean of y-coordinates feature")
 
+    # Trigger Statistics Features
+    # Only exists in images built from code that defines roi_trigger_fraction; on
+    # images without it the emitted config key is ignored. Must be emitted
+    # explicitly to disable, since the extractor treats an absent key as enabled.
+    use_roi_trigger_fraction: bool = Field(True, description="Use fraction of trigger events that yielded a detected ROI feature")
+
 # Parameters relevant to IFCB flow metric training
 class IFCBTrainingParams(BaseModel):
     data_dir: str = Field(..., description="Directory containing IFCB point cloud data")
@@ -65,7 +71,16 @@ class IFCBTrainingParams(BaseModel):
     max_samples: Union[int, float, str] = Field("auto", description="Number of samples to draw from X to train each base estimator")
     max_features: Union[int, float] = Field(1.0, description="Number of features to draw from X to train each base estimator")
     bin_type: BinType = Field(..., description="Type of bins to train on: 'I' for I-bins or 'D' for D-bins")
-    
+
+    # Docker image
+    ifcb_image: str = Field(
+        "ghcr.io/whoigit/ifcb-flow-metric:main",
+        description=(
+            "Docker image used for training. Determines which features exist; the "
+            "trained model records its own feature names, so scoring follows it."
+        ),
+    )
+
     # Feature selection configuration
     feature_config: IFCBFeatureConfig = Field(default_factory=IFCBFeatureConfig, description="Feature selection configuration")
 

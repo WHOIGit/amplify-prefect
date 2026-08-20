@@ -16,7 +16,7 @@ def ifcb_training_flow(ifcb_training_params: IFCBTrainingParams):
     """
     
     # Define the Docker image for IFCB flow metric training
-    ifcb_image = "ghcr.io/whoigit/ifcb-flow-metric:main"
+    ifcb_image = ifcb_training_params.ifcb_image
     
     # Pull the latest image
     pull_images([ifcb_image])

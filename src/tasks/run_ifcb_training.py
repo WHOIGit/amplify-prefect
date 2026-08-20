@@ -54,6 +54,9 @@ def generate_feature_config_yaml(params: IFCBTrainingParams) -> str:
         },
         'temporal': {
             't_y_var': feature_config.use_t_y_var,
+        },
+        'trigger_stats': {
+            'roi_trigger_fraction': feature_config.use_roi_trigger_fraction,
         }
     }
     
