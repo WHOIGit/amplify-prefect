@@ -20,8 +20,22 @@ def extract_slim_features_flow(extract_features_params: ExtractSlimFeaturesParam
     
     logger = get_run_logger()
     
-    # Create output directory if it doesn't exist
+    # Create output directory if it doesn't exist.
+    #
+    # makedirs' own mode= is masked by the umask, so under the Prefect process
+    # umask (0022) the root would land 0755: setgid inherited from the parent
+    # gives it the right group, but the group cannot write to it. Everything the
+    # container creates underneath is 0775 (the image sets umask 0002), so
+    # without this the root is the one directory the group can't add to.
     os.makedirs(extract_features_params.output_directory, exist_ok=True)
+    try:
+        os.chmod(extract_features_params.output_directory, 0o2775)
+    except OSError as e:
+        # A pre-existing directory owned by another user cannot be chmod'ed;
+        # that is not worth failing an extraction run over.
+        logger.warning(
+            f"Could not set 2775 on {extract_features_params.output_directory}: {e}"
+        )
     logger.info(f"Output directory: {extract_features_params.output_directory}")
 
     extract_features_image = resolve_extract_slim_features_image(extract_features_params)
