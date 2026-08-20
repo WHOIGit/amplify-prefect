@@ -30,8 +30,9 @@ def ifcb_full_evaluation_flow(ifcb_full_evaluation_params: IFCBFullEvaluationPar
     logger.info(f"Output directory: {ifcb_full_evaluation_params.output_dir}")
     
     # Define the Docker image
-    ifcb_image = "ghcr.io/whoigit/ifcb-flow-metric:main"
-    
+    ifcb_image = ifcb_full_evaluation_params.ifcb_image
+    logger.info(f"Using Docker image: {ifcb_image}")
+
     # Pull the latest image
     pull_images([ifcb_image])
     

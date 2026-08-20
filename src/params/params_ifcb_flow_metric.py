@@ -101,7 +101,17 @@ class IFCBFullEvaluationParams(BaseModel):
     i_model_path: str = Field(..., description="Path to the trained IFCB model file for I bins")
     d_model_path: str = Field(..., description="Path to the trained IFCB model file for D bins")
     output_dir: str = Field(..., description="Directory where all evaluation outputs will be saved")
-    
+
+    # Docker image
+    ifcb_image: str = Field(
+        "ghcr.io/whoigit/ifcb-flow-metric:main",
+        description=(
+            "Docker image used for inference and evaluation. Must be built from code "
+            "that computes the same features the models were trained on, since "
+            "scikit-learn validates feature count but not feature identity."
+        ),
+    )
+
     # Optional parameters for inference
     n_jobs: int = Field(-1, description="Number of parallel jobs for feature extraction")
     aspect_ratio: float = Field(1.36, description="Camera frame aspect ratio")
