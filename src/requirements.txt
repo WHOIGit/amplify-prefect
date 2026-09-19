@@ -9,7 +9,7 @@ alembic==1.15.2
 amplify-schemas @ git+https://github.com/WHOIGit/amplify-schemas@5d14433ac8a7e9d2b98eb8224135aa6876920f9d
 amplify-storage-utils @ git+https://github.com/WHOIGit/amplify-storage-utils.git@a2953c109aa554facf5d5a174632ab92d6aff01a
 annotated-types==0.7.0
-anyio==4.9.0
+anyio==4.14.2
 apprise==1.9.3
 asgi-lifespan==2.1.0
 async-timeout==5.0.1
