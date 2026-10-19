@@ -10,7 +10,7 @@ amplify-schemas @ git+https://github.com/WHOIGit/amplify-schemas@5d14433ac8a7e9d
 amplify-storage-utils @ git+https://github.com/WHOIGit/amplify-storage-utils.git@a2953c109aa554facf5d5a174632ab92d6aff01a
 annotated-types==0.7.0
 anyio==4.9.0
-apprise==1.9.3
+apprise==1.11.0
 asgi-lifespan==2.1.0
 async-timeout==5.0.1
 asyncpg==0.30.0
