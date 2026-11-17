@@ -110,7 +110,7 @@ The ONNX inference workflow requires the following parameters in the Prefect UI.
 - `subfolder_type` (optional): Choose `model-name` or `run-date` output layout
 - `force_notorch` (optional): Force non-PyTorch backend
 - `cpuonly` (optional): Force CPU-only inference (default: false)
-- `cuda_visible_devices`: GPU devices to use (default: "0,1,2,3")
+- `cuda_visible_devices`: GPUs to use, as a [GPU spec](#gpu-allocation) (default: "auto")
 - `ensure_softmax` (optional): Ensure softmax is applied to model output (default: true)
 - `embeddings` (optional): Write penultimate-layer embeddings alongside scores
 - `embeddings_only` (optional): Skip the score CSV and write only embeddings
@@ -126,7 +126,7 @@ The YOLO inference workflow requires two parameter sets:
 - `data_dir`: Directory containing input images/videos
 - `output_dir`: Directory where results will be saved
 - `model_weights_path`: Path to YOLO model weights (.pt file)
-- `device`: Compute device for inference (e.g., "0" for GPU 0, "cpu")
+- `device`: GPUs to use, as a [GPU spec](#gpu-allocation) (default: "auto")
 - `agnostic_nms`: Class-agnostic Non-Maximum Suppression (default: true)
 - `iou`: IoU threshold for NMS to eliminate overlapping boxes (default: 0.5)
 - `conf`: Minimum confidence threshold for detections (default: 0.1)
@@ -190,7 +190,7 @@ The slim feature extraction workflow supports two extraction sources:
 - `s3_bucket`, `s3_url`, `s3_prefix`: S3 settings for `storage` source
 - `feature_storage_mode`: Feature storage mode for `storage` source, either `local` or `vastdb`
 - `vastdb_bucket`, `vastdb_schema`, `vastdb_table`, `vastdb_url`: VastDB settings for `storage` source
-- `batch_processing`, `min_batch_size`, `max_batch_size`, `gpu_device`: GPU batch-processing settings for `storage` source
+- `batch_processing`, `min_batch_size`, `max_batch_size`, `gpu_device`: GPU batch-processing settings for `storage` source. Batch processing uses one GPU: `gpu_device` if set, otherwise any idle one (see [GPU allocation](#gpu-allocation))
 
 ### Stingray Image Analysis Workflows
 
@@ -220,6 +220,41 @@ repository.
 - `merge_labels`: merge labels before abundance processing
 - `score_thresh`, `bin_width`, `volume_per_frame`, `add_ci`: abundance controls
 - `jobs`: optional label-conversion worker count; empty uses the visible CPU count minus one
+
+## GPU allocation
+
+The GPU host is shared, so GPU flows don't assume the GPU they were given is free.
+Before starting its container, a flow picks GPUs that are idle right now (no
+compute processes and almost no memory in use), takes an exclusive lock on each
+so no two flow runs share a GPU, and passes only those GPUs to the container.
+If none are free, it waits and logs what is using each GPU instead of failing.
+
+Every GPU parameter (`cuda_visible_devices`, `device`, `gpus`, `device_ids`,
+`gpu_device`) takes a GPU spec:
+
+| Spec | Meaning |
+|---|---|
+| `auto` or `all` | every GPU that is idle when the run starts (at least one) |
+| `auto:N` | N idle GPUs |
+| `1,2` | exactly host GPUs 1 and 2, waiting until both are idle |
+| `cpu` | no GPU |
+
+Indices are the host's (`nvidia-smi`) numbering. Inside the container the
+allocated GPUs are renumbered from 0, and the flows pass the container's
+numbering to the tool they run.
+
+Containers are labelled with the flow run that started them
+(`docker ps --filter label=org.whoi.amplify.flow-run-name`), and are stopped if
+their flow run is cancelled or its serve process stops.
+
+Settings, as environment variables of the serve processes:
+
+- `AMPLIFY_GPU_WAIT_MINUTES` (default 120): how long to wait for GPUs before failing
+- `AMPLIFY_GPU_IDLE_MEMORY_MIB` (default 1024): a GPU using more memory than this is busy
+- `AMPLIFY_GPU_LOCK_DIR` (default `~/.local/state/amplify-gpu-locks`): where the locks live
+
+The idle check can't stop someone outside Prefect from starting on a GPU after a
+flow has checked it; it only keeps flows off GPUs that are already busy.
 
 ## YOLO Training Data Format
 

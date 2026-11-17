@@ -5,6 +5,7 @@ import docker
 from pydantic import BaseModel, Field
 
 from dojo.schemas import TrainingRunConfig
+from src.tasks.gpu import allocate_gpus, run_container
 
 class VolumeMapping(BaseModel):
     host_path: str = Field(..., description="Path on the host machine")
@@ -12,9 +13,11 @@ class VolumeMapping(BaseModel):
     mode: Literal['ro','rw']= Field('rw', description="Mount mode: read-only ('ro') or read-write ('rw')")
 
 @task()
-def run_container(output_dir: str, input_volumes: List[VolumeMapping], subcommands:List[str], training_run_config: TrainingRunConfig, device_ids:List[str]=['all']):
+def run_dojo_container(output_dir: str, input_volumes: List[VolumeMapping], subcommands:List[str], training_run_config: TrainingRunConfig, device_ids:List[str]=['all']):
     """
     Run Image Classifier Dojo in a Docker container.
+
+    ``device_ids`` is a GPU spec (see src/tasks/gpu.py); ['all'] means every idle GPU.
     """
 
     client = docker.from_env()
@@ -41,51 +44,15 @@ def run_container(output_dir: str, input_volumes: List[VolumeMapping], subcomman
                 "--runtime", training_run_config.runtime.model_dump_json()
             ]
     logger.info(command)
-    try:
-        container = client.containers.run(
+    with allocate_gpus(device_ids, logger) as gpus:
+        run_container(
+            client,
             'harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.2',
             command,
+            logger,
+            gpus=gpus,
             shm_size='8g',
             volumes=volumes,
-            device_requests=[docker.types.DeviceRequest(device_ids=device_ids, capabilities=[["gpu"]])],
             ipc_mode="host",
-            remove=False,  # Don't auto-remove so we can get logs on failure
-            detach=True,
         )
-
-    # Stream logs in real-time
-        try:
-            for line in container.logs(stream=True, follow=True):
-                logger.info(line.decode('utf-8').rstrip())
-        except Exception as log_error:
-            logger.error(f"Error streaming logs: {log_error}")
-
-        # Wait for container to finish and check exit code
-        result = container.wait()
-        exit_code = result['StatusCode']
-
-        if exit_code != 0:
-            # Get the full logs for error reporting
-            full_logs = container.logs(stdout=True, stderr=True).decode('utf-8')
-            container.remove()
-            logger.error(f"Container failed with exit code {exit_code}")
-            logger.error(f"Full container output:\n{full_logs}")
-            raise RuntimeError(f"Docker container failed with exit code {exit_code}")
-
-        # Clean up container on success
-        container.remove()
-        logger.info("✓ Validation completed successfully")
-
-    except docker.errors.ContainerError as e:
-        logger.error(f"Container failed with exit code {e.exit_status}")
-        logger.error(f"Command: {e.command}")
-        if e.stderr:
-            stderr = e.stderr.decode('utf-8') if isinstance(e.stderr, bytes) else str(e.stderr)
-            logger.error(f"Container stderr:\n{stderr}")
-        raise RuntimeError(f"Docker container failed with exit code {e.exit_status}")
-    except docker.errors.APIError as e:
-        logger.error(f"Docker API error: {str(e)}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error running container: {str(e)}")
-        raise
+    logger.info("✓ Training completed successfully")

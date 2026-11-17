@@ -5,6 +5,7 @@ from prefect import get_run_logger
 from prefect import task
 
 from src.params.params_onnx import ONNXInferenceParams
+from src.tasks.gpu import allocate_gpus, container_devices, run_container
 
 DEFAULT_SCORE_OUTFILE = "{MODEL_NAME}/{SUBPATH}/{BIN}.csv"
 DEFAULT_EMBEDDINGS_OUTFILE = "{MODEL_NAME}/{SUBPATH}/{BIN}.emb.parquet"
@@ -93,38 +94,20 @@ def run_onnx_inference(onnx_inference_params: ONNXInferenceParams, onnx_image: s
             "mode": "ro",
         }
 
-    environment = {"CUDA_VISIBLE_DEVICES": onnx_inference_params.cuda_visible_devices}
     command_args = _build_command_args(onnx_inference_params, model_container_path)
+    gpu_spec = "cpu" if onnx_inference_params.cpuonly else onnx_inference_params.cuda_visible_devices
 
-    logger.info("Running container with command: %s", " ".join(command_args))
-
-    try:
-        container_kwargs = {
-            "volumes": volumes,
-            "environment": environment,
-            "ipc_mode": "host",
-            "remove": True,
-            "detach": False,
-            "stdout": True,
-            "stderr": True,
-            "stream": True,
-        }
-        if not onnx_inference_params.cpuonly:
-            container_kwargs["device_requests"] = [
-                docker.types.DeviceRequest(device_ids=["all"], capabilities=[["gpu"]])
-            ]
-
-        container = client.containers.run(onnx_image, command_args, **container_kwargs)
-
-        for line in container:
-            logger.info(line.decode("utf-8").rstrip())
-
-    except docker.errors.ContainerError as e:
-        logger.error(
-            "Container failed with stderr: %s",
-            e.stderr.decode("utf-8") if e.stderr else "No stderr",
+    with allocate_gpus(gpu_spec, logger) as gpus:
+        # The container only sees the allocated GPUs, renumbered from 0.
+        environment = {"CUDA_VISIBLE_DEVICES": container_devices(gpus)} if gpus else {}
+        logger.info("Running container with command: %s", " ".join(command_args))
+        run_container(
+            client,
+            onnx_image,
+            command_args,
+            logger,
+            gpus=gpus,
+            volumes=volumes,
+            environment=environment,
+            ipc_mode="host",
         )
-        raise RuntimeError(f"Docker container failed with exit code {e.exit_status}")
-    except Exception as e:
-        logger.error("Unexpected error running container: %s", str(e))
-        raise
