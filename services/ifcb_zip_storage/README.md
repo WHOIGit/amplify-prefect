@@ -1,13 +1,13 @@
 # IFCB ZIP Storage Service
 
-This service processes IFCB data directories, generates ZIP files for each fileset using `pyifcb`, and uploads them to object storage using `amplify-storage-utils`.
+This service processes IFCB data directories, generates ZIP files for each fileset using `ifcbkit`, and uploads them to object storage using `amplify-storage-utils`.
 
 ## Overview
 
 - **Input**: IFCB data directory path
 - **Process**:
-  1. Iterates through IFCB filesets using `pyifcb.DataDirectory`
-  2. Converts each fileset to ZIP format using `bin2zip_stream()`
+  1. Finds IFCB filesets (`.hdr`/`.adc`/`.roi`) in the data directory, skipping unreadable subdirectories with a warning
+  2. Converts each fileset to ZIP format using `bin2zip_stream()`, which writes the same format as pyifcb's function of that name
   3. Uploads ZIP buffers to object storage
 - **Output**: ZIP files stored in configured object store with keys: `{bin_name}.zip`
 
@@ -78,6 +78,20 @@ Pass all three parameters to the flow:
 
 ## Dependencies
 
-- `pyifcb` v1.2.1 - IFCB data processing
-- `amplify-storage-utils` v1.4.2 - Object storage abstraction
+- `ifcbkit` v0.3.1 - IFCB headers, ADC parsing, ROI images and stitching
+- `amplify-storage-utils` v1.5.1 - Object storage abstraction
 - `PyYAML` - YAML configuration parsing
+- `pandas` 2.x - writes the ADC CSV in the ZIP; pandas 3 formats some floats differently, so it stays below 3
+- `Pillow` - PNG encoding
+
+## ZIP format
+
+Each ZIP holds `metadata.json`, `<bin>_headers.json`, `<bin>.csv` (the ADC) and
+one PNG per ROI. This service used to use pyifcb, and the ZIPs are still
+byte-identical to what pyifcb v1.2.1 produced; `tests/` checks that against
+two real bins.
+
+```
+pip install -r services/ifcb_zip_storage/requirements.txt pytest
+pytest services/ifcb_zip_storage/tests
+```

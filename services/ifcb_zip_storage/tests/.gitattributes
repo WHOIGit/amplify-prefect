@@ -1,0 +1,2 @@
+# IFCB fixture files must stay byte-exact (no line-ending conversion or diffs)
+fixtures/** binary
