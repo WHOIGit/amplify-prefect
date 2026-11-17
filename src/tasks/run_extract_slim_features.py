@@ -5,6 +5,7 @@ import os
 from prefect import get_run_logger
 
 from src.params.params_extract_slim_features import ExtractSlimFeaturesParams, SlimFeaturesSource
+from src.tasks.gpu import allocate_gpus, run_container
 
 
 MAIN_SLIM_FEATURES_IMAGE = "ghcr.io/whoigit/ifcb-features:latest"
@@ -20,7 +21,11 @@ def resolve_extract_slim_features_image(extract_features_params: ExtractSlimFeat
     return extract_features_params.extract_features_image
 
 
-def build_extract_slim_features_command(extract_features_params: ExtractSlimFeaturesParams) -> list[str]:
+def build_extract_slim_features_command(
+    extract_features_params: ExtractSlimFeaturesParams,
+    container_gpu_device: int | None = None,
+) -> list[str]:
+    """``container_gpu_device`` overrides gpu_device with the GPU's index inside the container."""
     command_args = [
         "/app/data",
         "/app/output"
@@ -86,8 +91,11 @@ def build_extract_slim_features_command(extract_features_params: ExtractSlimFeat
             "--min-batch-size", str(extract_features_params.min_batch_size),
             "--max-batch-size", str(extract_features_params.max_batch_size)
         ])
-        if extract_features_params.gpu_device is not None:
-            command_args.extend(["--gpu-device", str(extract_features_params.gpu_device)])
+        gpu_device = (
+            container_gpu_device if container_gpu_device is not None else extract_features_params.gpu_device
+        )
+        if gpu_device is not None:
+            command_args.extend(["--gpu-device", str(gpu_device)])
 
     return command_args
 
@@ -126,71 +134,31 @@ def run_extract_slim_features(extract_features_params: ExtractSlimFeaturesParams
             'AWS_SECRET_ACCESS_KEY': aws_credentials.aws_secret_access_key.get_secret_value(),
         })
 
-    # Build command arguments; each image's ENTRYPOINT already supplies the script
-    # (extract_features_batch.py for the main image).
-    command_args = build_extract_slim_features_command(extract_features_params)
-
-    logger.info(f'Running container with command: {" ".join(command_args)}')
-    logger.info(f'Using Docker image: {extract_features_image}')
-
-    # Configure GPU device requests if batch processing is enabled
-    device_requests = []
-    if (
+    uses_gpu = (
         extract_features_params.extract_features_source == SlimFeaturesSource.storage
         and extract_features_params.batch_processing
-    ):
-        if extract_features_params.gpu_device is not None:
-            # Request specific GPU device
-            device_requests = [docker.types.DeviceRequest(
-                device_ids=[str(extract_features_params.gpu_device)],
-                capabilities=[["gpu"]]
-            )]
-        else:
-            # Request all available GPUs
-            device_requests = [docker.types.DeviceRequest(
-                device_ids=["all"],
-                capabilities=[["gpu"]]
-            )]
-        logger.info(f"GPU device requests configured: {device_requests}")
+    )
+    # Batch processing uses one GPU: the requested one, or any idle one.
+    gpu_spec = "cpu"
+    if uses_gpu:
+        gpu_spec = extract_features_params.gpu_device if extract_features_params.gpu_device is not None else "auto:1"
 
-    try:
-        # Get current user's UID and GID to ensure output files are owned by the user
-        uid = os.getuid()
-        gid = os.getgid()
+    with allocate_gpus(gpu_spec, logger) as gpus:
+        # The container only sees the allocated GPU, as device 0.
+        command_args = build_extract_slim_features_command(
+            extract_features_params, container_gpu_device=0 if gpus else None
+        )
+        logger.info(f'Running container with command: {" ".join(command_args)}')
+        logger.info(f'Using Docker image: {extract_features_image}')
 
-        # Run container in detached mode to stream logs properly
-        container = client.containers.run(
+        # Run as the current user so output files are owned by them.
+        run_container(
+            client,
             extract_features_image,
             command_args,
+            logger,
+            gpus=gpus,
             volumes=volumes,
             environment=environment,
-            user=f"{uid}:{gid}",
-            device_requests=device_requests if device_requests else None,
-            detach=True  # Run detached and stream logs separately
+            user=f"{os.getuid()}:{os.getgid()}",
         )
-
-        # Stream logs in real-time
-        try:
-            for log_line in container.logs(stream=True, follow=True):
-                logger.info(log_line.decode('utf-8').rstrip())
-
-            # Wait for container to finish
-            result = container.wait()
-            exit_code = result['StatusCode']
-
-            if exit_code != 0:
-                raise RuntimeError(f"Docker container failed with exit code {exit_code}")
-
-        finally:
-            # Clean up container
-            try:
-                container.remove()
-            except:
-                pass
-            
-    except docker.errors.ContainerError as e:
-        logger.error(f"Container failed with stderr: {e.stderr.decode('utf-8') if e.stderr else 'No stderr'}")
-        raise RuntimeError(f"Docker container failed with exit code {e.exit_status}")
-    except Exception as e:
-        logger.error(f"Unexpected error running container: {str(e)}")
-        raise

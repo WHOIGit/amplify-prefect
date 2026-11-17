@@ -52,4 +52,4 @@ class ExtractSlimFeaturesParams(BaseModel):
     batch_processing: bool = Field(False, description="Enable GPU-accelerated batch processing for phase congruency")
     min_batch_size: int = Field(4, description="Minimum number of ROIs needed to form a batch")
     max_batch_size: int = Field(64, description="Maximum batch size for GPU memory management")
-    gpu_device: Optional[int] = Field(None, description="GPU device index to use (e.g., 0, 1, 2). If None, uses default device")
+    gpu_device: Optional[int] = Field(None, description="Host GPU index to use for batch processing (e.g., 0, 1, 2). If None, uses any idle GPU. Waits until it is free.")

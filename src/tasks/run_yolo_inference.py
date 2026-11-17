@@ -4,16 +4,19 @@ import docker
 from prefect import get_run_logger
 
 from src.params.params_amplify import YOLOInferenceParams, YOLOVisualizationParams
+from src.tasks.gpu import allocate_gpus, container_devices, run_container
 
 
 def _build_command_args(
     yolo_inference_params: YOLOInferenceParams,
     yolo_visualization_params: YOLOVisualizationParams,
+    device: str | None = None,
 ) -> list[str]:
+    """``device`` overrides yolo_inference_params.device, e.g. with the in-container GPU indices."""
     command_args = [
         "python3",
         "/ultralytics/yolo_inference.py",
-        str(yolo_inference_params.device),
+        str(yolo_inference_params.device if device is None else device),
         str(yolo_inference_params.agnostic_nms),
         str(yolo_inference_params.iou),
         str(yolo_inference_params.conf),
@@ -73,31 +76,17 @@ def run_yolo_inference(yolo_inference_params: YOLOInferenceParams, yolo_visualiz
         yolo_inference_params.model_weights_path: {'bind': '/input/weights.pt', 'mode': 'ro'}
     }
     
-    command_args = _build_command_args(yolo_inference_params, yolo_visualization_params)
-    
-    logger.info(f'Running container with command: {" ".join(command_args)}')
-    
-    try:
-        container = client.containers.run(
+    with allocate_gpus(yolo_inference_params.device, logger) as gpus:
+        # The container only sees the allocated GPUs, renumbered from 0.
+        device = container_devices(gpus) if gpus else "cpu"
+        command_args = _build_command_args(yolo_inference_params, yolo_visualization_params, device=device)
+        logger.info(f'Running container with command: {" ".join(command_args)}')
+        run_container(
+            client,
             yolo_image,
             command_args,
+            logger,
+            gpus=gpus,
             volumes=volumes,
-            device_requests=[docker.types.DeviceRequest(device_ids=["all"], capabilities=[["gpu"]])],
             ipc_mode="host",
-            remove=True,
-            detach=False,
-            stdout=True,
-            stderr=True,
-            stream=True
         )
-        
-        # Stream output
-        for line in container:
-            logger.info(line.decode('utf-8').rstrip())
-            
-    except docker.errors.ContainerError as e:
-        logger.error(f"Container failed with stderr: {e.stderr.decode('utf-8') if e.stderr else 'No stderr'}")
-        raise RuntimeError(f"Docker container failed with exit code {e.exit_status}")
-    except Exception as e:
-        logger.error(f"Unexpected error running container: {str(e)}")
-        raise
