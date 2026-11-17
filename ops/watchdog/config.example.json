@@ -1,0 +1,71 @@
+{
+  "subject_prefix": "[prefect]",
+  "email_to": [
+    "you@example.org"
+  ],
+  "email_from": "prefect-watchdog@prefect-host.example.org",
+  "smtp_host": "localhost",
+  "smtp_port": 25,
+  "ui_url": "https://prefect-host.example.org/prefect",
+  "systemd_units": [
+    "prefect_server.service",
+    "prefect_postgres.service",
+    "prefect_onnx_inference.service",
+    "prefect_slim_features.service",
+    "prefect_slim_feature_validation.service",
+    "prefect_yolo_inference.service",
+    "prefect_yolo_training.service",
+    "prefect_stingray_frame_timestamps.service",
+    "prefect_stingray_image_abundance.service",
+    "prefect_ifcb_flow_metric_evaluation.service",
+    "prefect_ifcb_flow_metric_hyperparameter_search.service",
+    "prefect_ifcb_flow_metric_inference.service",
+    "prefect_ifcb_flow_metric_training.service",
+    "prefect_ifcb_zipping_service.service",
+    "prefect_image_classifier_dojo.service"
+  ],
+  "deployments": [
+    "onnx-inference",
+    "extract-slim-features",
+    "slim-feature-validation",
+    "yolo-inference",
+    "yolo-training",
+    "stingray-frame-timestamps",
+    "stingray-image-abundance",
+    "ifcb-flow-metric-evaluation",
+    "ifcb-flow-metric-hyperparameter-search",
+    "ifcb-flow-metric-inference",
+    "ifcb-flow-metric-training",
+    "ifcb-zipping",
+    "image-classifier-dojo_train-multiclass"
+  ],
+  "postgres_container": "postgres",
+  "images": [
+    "ghcr.io/whoigit/ifcb-inference:latest",
+    "ghcr.io/whoigit/ifcb-inference-embeddings:latest",
+    "ghcr.io/whoigit/ifcb-features:latest",
+    "ghcr.io/whoigit/amplify-prefect/amplify-ultralytics:latest",
+    "ghcr.io/whoigit/stingray-image-analysis:latest",
+    "ghcr.io/whoigit/ifcb-flow-metric:main",
+    "ghcr.io/whoigit/amplify-prefect/ifcb-zip-storage:latest",
+    "harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.2"
+  ],
+  "image_check_minutes": 60,
+  "disk_paths": [
+    "/",
+    "/opt",
+    "/var",
+    "/var/log",
+    "/tmp",
+    "/srv/data",
+    "/srv/scratch"
+  ],
+  "disk_max_percent": 90,
+  "pending_max_minutes": 60,
+  "late_max_minutes": 60,
+  "running_max_hours": {
+    "default": 168,
+    "yolo-inference": 720
+  },
+  "remind_hours": 24
+}
