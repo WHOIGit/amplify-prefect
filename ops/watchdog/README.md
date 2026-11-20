@@ -20,6 +20,12 @@ What it checks:
 - **images**: each image in `images` can be pulled from its registry with the stored credentials (hourly)
 - **disk** usage of `disk_paths` is below `disk_max_percent`
 
+It also writes a status page (`index.html` and `status.json`) to `status_page_dir`
+on every pass: open problems, 90-day uptime, running and failed flow runs,
+deployments, GPU use, services, disk and images. `apache-status-page.conf` serves it
+at `/prefect-status/`; installing it needs root. The page warns when it is more than
+15 minutes old, which means the watchdog itself has stopped.
+
 It emails when a problem appears, once a day while a problem stays open, when a
 problem recovers, and for each failed run. State is kept in
 `~/.local/state/prefect-watchdog/state.json` and output in `cron.log` next to it.
@@ -39,6 +45,7 @@ crontab -e
 ```
 .venv/bin/python ops/watchdog/prefect_watchdog.py --dry-run     # print what it would send
 .venv/bin/python ops/watchdog/prefect_watchdog.py --test-email  # check mail delivery
+.venv/bin/python ops/watchdog/prefect_watchdog.py --dry-run --page-dir /tmp/page  # preview the page
 ```
 
 When you add or retire a served flow, update `systemd_units`, `deployments` and

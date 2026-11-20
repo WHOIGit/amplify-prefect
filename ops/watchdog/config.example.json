@@ -67,5 +67,6 @@
     "default": 168,
     "yolo-inference": 720
   },
-  "remind_hours": 24
+  "remind_hours": 24,
+  "status_page_dir": "/opt/amplify-prefect/ops/watchdog/www"
 }
