@@ -23,6 +23,9 @@ python src/deploy_flow.py https://github.com/WHOIGit/amplify-prefect.git src/flo
 It clones the repo from GitHub at the start of every run, so a flow change takes effect once it's on `main`.
 Local edits do nothing.
 
+Site settings that stay out of the repo go in `~/.config/amplify-prefect/flows.env`, which `deploy_flow.py` loads
+for its flow runs. The dojo flow needs `AMPLIFY_DOJO_IMAGE=<registry>/amplify/image_classifier_dojo:<tag>`.
+
 In production each deployment is a systemd unit. `sudo ops/systemd/install.sh` makes them restart and start at boot,
 and `ops/watchdog/` emails when runs fail or something goes down.
 
