@@ -351,9 +351,6 @@ def check_disks(config, state, report):
             report.problem(f"disk:{path}", f"Cannot check disk {path}: {error}")
             continue
         percent = 100 * usage.used / usage.total
-        report.status.setdefault("disks", []).append(
-            {"path": path, "percent": percent, "free_gb": usage.free / 1e9}
-        )
         if percent >= config["disk_max_percent"]:
             report.problem(
                 f"disk:{path}",
@@ -416,13 +413,6 @@ def status_data(config, state, report, now):
         "recent_failed": status.get("recent_failed", []),
         "counts_24h": status.get("counts_24h", {}),
         "postgres": status.get("postgres"),
-        "disks": status.get("disks", []),
-        "disk_max": config["disk_max_percent"],
-        "images": [
-            {"image": image, "ok": f"image:{image}" not in report.problems}
-            for image in config["images"]
-        ],
-        "images_checked": state.get("images_checked_at"),
         "uptime": status_page.uptime_rows(history, today),
         "incidents": list(reversed(state.get("incidents", []))),
     }

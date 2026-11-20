@@ -61,10 +61,6 @@ def sample_data(**overrides):
         "recent_failed": [],
         "counts_24h": {"Completed": 2, "Failed": 1},
         "postgres": "running",
-        "disks": [{"path": "/", "percent": 95.0, "free_gb": 12.0}],
-        "disk_max": 90,
-        "images": [{"image": "ghcr.io/x/y:latest", "ok": False}],
-        "images_checked": now.isoformat(),
         "uptime": status_page.uptime_rows({}, TODAY),
         "incidents": [{"message": "m", "since": now.isoformat(), "until": now.isoformat()}],
         "gpus": [
@@ -84,6 +80,7 @@ def test_render_ok_and_escapes():
     assert "&lt;b&gt;r&lt;/b&gt;" in page and "<b>r</b>" not in page
     assert "Not Ready" in page
     assert "run-9" in page
+    assert "<h2>Disk" not in page and "Container images" not in page
     assert page.count('<i class="none"') == 90 * len(status_page.COMPONENTS)
 
 

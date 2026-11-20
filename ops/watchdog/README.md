@@ -22,7 +22,7 @@ What it checks:
 
 It also writes a status page (`index.html` and `status.json`) to `status_page_dir`
 on every pass: open problems, 90-day uptime, running and failed flow runs,
-deployments, GPU use, services, disk and images. `apache-status-page.conf` serves it
+deployments, GPU use and services. `apache-status-page.conf` serves it
 at `/prefect-status/`; installing it needs root. The page warns when it is more than
 15 minutes old, which means the watchdog itself has stopped.
 

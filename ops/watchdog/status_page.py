@@ -244,23 +244,9 @@ def render(data):
         + f'</td><td>{u["restarts"]}</td></tr>'
         for u in data.get("units") or []
     )
-    disk_rows = "".join(
-        f'<tr><td>{e(d["path"])}</td><td><div class="meter {"hot" if d["percent"] >= data["disk_max"] else ""}">'
-        f'<span style="width:{min(d["percent"], 100):.0f}%"></span></div></td>'
-        f'<td>{d["percent"]:.0f}%</td><td>{d["free_gb"]:,.0f} GB free</td></tr>'
-        for d in data.get("disks") or []
-    )
-    image_rows = "".join(
-        f'<tr><td>{e(i["image"])}</td><td>{pill("Pullable", "ok") if i["ok"] else pill("Cannot pull", "bad")}</td></tr>'
-        for i in data.get("images") or []
-    )
     sections.append(
         '<section><h2>Services</h2><div class="scroll"><table><thead><tr><th>systemd unit</th><th>State</th>'
         f'<th>Restarts</th></tr></thead><tbody>{unit_rows}</tbody></table></div></section>'
-        '<section><h2>Disk</h2><div class="scroll"><table class="disk"><tbody>' + disk_rows + '</tbody></table></div></section>'
-        '<section><h2>Container images</h2>'
-        f'<p class="muted">Checked {e(local(data.get("images_checked")))}</p>'
-        f'<div class="scroll"><table><tbody>{image_rows}</tbody></table></div></section>'
     )
 
     # Incidents
@@ -344,8 +330,6 @@ td{overflow-wrap:anywhere}
 .who{margin-top:6px;font-size:14px;overflow-wrap:anywhere}
 .meter{height:8px;background:var(--line);border-radius:4px;overflow:hidden;min-width:80px}
 .meter span{display:block;height:100%;background:var(--info)}
-.meter.hot span{background:var(--bad)}
-table.disk td:nth-child(2){width:45%}
 """
 
 PAGE = """<!doctype html>
