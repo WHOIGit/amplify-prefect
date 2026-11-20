@@ -4,7 +4,8 @@ Runs from cron every few minutes (see README.md next to this file). It checks
 the systemd units, Prefect API, served deployments, flow runs, Postgres
 container, registry pull access and disk space, then emails when a problem
 appears, keeps going (daily reminder) or recovers, and for every flow run that
-ends Failed or Crashed.
+ends Failed or Crashed. If ``status_page_dir`` is set it also writes a static
+status page there (see status_page.py).
 
 It deliberately does not depend on Prefect being healthy: if the API is down
 that is itself reported, and the checks that need the API keep their last
@@ -19,12 +20,15 @@ import shutil
 import smtplib
 import socket
 import subprocess
+import sys
 import traceback
 from email.message import EmailMessage
 from pathlib import Path
 
 CONFIG_PATH = Path(os.environ.get("PREFECT_WATCHDOG_CONFIG", Path.home() / ".config/prefect-watchdog/config.json"))
 STATE_PATH = Path.home() / ".local/state/prefect-watchdog/state.json"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+INCIDENT_DAYS = 30
 
 
 def utcnow():
@@ -42,6 +46,7 @@ class Report:
     def __init__(self, previous_problems):
         self.problems = {}  # key -> message, for ongoing conditions
         self.events = []  # one-off messages, e.g. a failed flow run
+        self.status = {}  # what was seen, for the status page
         self._previous = previous_problems
 
     def problem(self, key, message):
@@ -63,6 +68,12 @@ def check_systemd(config, state, report):
     for unit in config["systemd_units"]:
         out = run(["systemctl", "show", unit, "-p", "ActiveState,SubState,NRestarts,LoadState"])
         props = dict(line.split("=", 1) for line in out.stdout.splitlines() if "=" in line)
+        report.status.setdefault("units", []).append({
+            "unit": unit,
+            "active": props.get("ActiveState", "?"),
+            "sub": props.get("SubState", "?"),
+            "restarts": int(props.get("NRestarts") or 0),
+        })
         if props.get("LoadState") != "loaded":
             report.problem(f"systemd:{unit}", f"{unit} is not loaded ({props.get('LoadState')})")
             continue
@@ -84,8 +95,11 @@ def check_systemd(config, state, report):
 def check_prefect(config, state, report):
     from prefect.client.orchestration import get_client
     from prefect.client.schemas.filters import (
+        DeploymentFilter,
+        DeploymentFilterId,
         FlowRunFilter,
         FlowRunFilterEndTime,
+        FlowRunFilterStartTime,
         FlowRunFilterState,
         FlowRunFilterStateType,
         LogFilter,
@@ -99,6 +113,7 @@ def check_prefect(config, state, report):
 
     with get_client(sync_client=True) as client:
         error = client.api_healthcheck()
+        report.status["api_ok"] = error is None
         if error is not None:
             report.problem("prefect:api", f"Prefect API health check failed: {error}")
             report.carry_over("deployment:")
@@ -121,6 +136,71 @@ def check_prefect(config, state, report):
                     f"Deployment {name} is NOT_READY: its serve process is not polling{age}. "
                     "New runs of it will not start.",
                 )
+
+        def run_url(flow_run):
+            return f"{ui}/runs/flow-run/{flow_run.id}"
+
+        def deployment_name(flow_run):
+            deployment = by_id.get(flow_run.deployment_id)
+            return deployment.name if deployment else "none"
+
+        for name in config["deployments"]:
+            deployment = by_name.get(name)
+            if deployment is None:
+                continue
+            last = client.read_flow_runs(
+                deployment_filter=DeploymentFilter(id=DeploymentFilterId(any_=[deployment.id])),
+                flow_run_filter=FlowRunFilter(start_time=FlowRunFilterStartTime(is_null_=False)),
+                sort=FlowRunSort.START_TIME_DESC,
+                limit=1,
+            )
+            report.status.setdefault("deployments", []).append({
+                "name": name,
+                "status": deployment.status.value if deployment.status else "UNKNOWN",
+                "last_polled": deployment.last_polled.isoformat() if deployment.last_polled else None,
+                "last_run": {
+                    "name": last[0].name,
+                    "state": last[0].state_name,
+                    "time": (last[0].end_time or last[0].start_time).isoformat(),
+                    "url": run_url(last[0]),
+                } if last else None,
+            })
+
+        day_ago = now - dt.timedelta(hours=24)
+        counts = {}
+        for label, state_type in (
+            ("Completed", StateType.COMPLETED),
+            ("Failed", StateType.FAILED),
+            ("Crashed", StateType.CRASHED),
+            ("Cancelled", StateType.CANCELLED),
+        ):
+            counts[label] = client.count_flow_runs(
+                flow_run_filter=FlowRunFilter(
+                    state=FlowRunFilterState(type=FlowRunFilterStateType(any_=[state_type])),
+                    end_time=FlowRunFilterEndTime(after_=day_ago),
+                )
+            )
+        report.status["counts_24h"] = counts
+        recent_failed = client.read_flow_runs(
+            flow_run_filter=FlowRunFilter(
+                state=FlowRunFilterState(
+                    type=FlowRunFilterStateType(any_=[StateType.FAILED, StateType.CRASHED])
+                ),
+                end_time=FlowRunFilterEndTime(after_=day_ago),
+            ),
+            sort=FlowRunSort.END_TIME_DESC,
+            limit=25,
+        )
+        report.status["recent_failed"] = [
+            {
+                "name": r.name,
+                "deployment": deployment_name(r),
+                "state": r.state_name,
+                "end": r.end_time.isoformat() if r.end_time else None,
+                "url": run_url(r),
+            }
+            for r in recent_failed
+        ]
 
         def describe(flow_run):
             deployment = by_id.get(flow_run.deployment_id)
@@ -184,6 +264,17 @@ def check_prefect(config, state, report):
             limit=200,
         )
         max_hours = config["running_max_hours"]
+        report.status["active_runs"] = [
+            {
+                "name": r.name,
+                "deployment": deployment_name(r),
+                "state": r.state_name,
+                "since": (r.start_time or r.state.timestamp).isoformat() if (r.start_time or r.state) else None,
+                "url": run_url(r),
+            }
+            for r in sorted(active, key=lambda r: r.start_time or now)
+            if r.state_type in (StateType.RUNNING, StateType.PENDING)
+        ]
         for flow_run in active:
             deployment = by_id.get(flow_run.deployment_id)
             entered = flow_run.state.timestamp if flow_run.state else None
@@ -221,6 +312,7 @@ def check_postgres(config, state, report):
     name = config["postgres_container"]
     out = run(["docker", "inspect", "-f", "{{.State.Status}}", name])
     status = out.stdout.strip() or out.stderr.strip()
+    report.status["postgres"] = status
     if status != "running":
         report.problem(f"postgres:{name}", f"Postgres container '{name}' is not running: {status}")
 
@@ -273,6 +365,63 @@ CHECKS = [
     ("images", check_images, "image:"),
     ("disk", check_disks, "disk:"),
 ]
+
+
+def gpu_status(config):
+    """GPU use for the status page: free, held by a flow run, or busy outside Prefect."""
+    sys.path.insert(0, str(REPO_ROOT))
+    from src.tasks.gpu import query_gpus
+
+    ui = config["ui_url"].rstrip("/")
+    gpus = []
+    for gpu in query_gpus():
+        holder = gpu.holder
+        use = "flow" if holder is not None else ("free" if gpu.idle else "other")
+        run_id = (holder or {}).get("flow_run_id")
+        gpus.append({
+            "index": gpu.index,
+            "used": gpu.memory_used_mib,
+            "total": gpu.memory_total_mib,
+            "util": gpu.utilization,
+            "use": use,
+            "flow_run_name": (holder or {}).get("flow_run_name"),
+            "flow_run_url": f"{ui}/runs/flow-run/{run_id}" if run_id else None,
+        })
+    return gpus
+
+
+def status_data(config, state, report, now):
+    import status_page
+
+    status = report.status
+    today = now.astimezone().date()
+    history = state.get("history", {})
+    deployments = status.get("deployments", [])
+    for deployment in deployments:
+        deployment["uptime30"] = status_page.uptime(history, f"deployment:{deployment['name']}", 30, today)
+    data = {
+        "generated": now.isoformat(),
+        "ui_url": config["ui_url"],
+        "problems": [
+            {"key": key, "message": info["message"], "since": info["since"]}
+            for key, info in sorted(state.get("problems", {}).items(), key=lambda kv: kv[1]["since"])
+        ],
+        "units": status.get("units", []),
+        "api_ok": status.get("api_ok"),
+        "deployments": deployments,
+        "active_runs": status.get("active_runs", []),
+        "recent_failed": status.get("recent_failed", []),
+        "counts_24h": status.get("counts_24h", {}),
+        "postgres": status.get("postgres"),
+        "uptime": status_page.uptime_rows(history, today),
+        "incidents": list(reversed(state.get("incidents", []))),
+    }
+    try:
+        data["gpus"] = gpu_status(config)
+    except Exception as error:
+        data["gpus"] = None
+        data["gpu_error"] = repr(error)
+    return data
 
 
 def send_email(config, subject, body):
@@ -341,6 +490,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dry-run", action="store_true", help="print the email, send nothing, save no state")
     parser.add_argument("--test-email", action="store_true", help="send a test email and exit")
+    parser.add_argument("--page-dir", help="write the status page here instead of status_page_dir "
+                        "(also works with --dry-run)")
     args = parser.parse_args()
 
     config = json.loads(CONFIG_PATH.read_text())
@@ -372,6 +523,8 @@ def main():
     email = build_email(report, previous, now, dt.timedelta(hours=config["remind_hours"]))
     if args.dry_run:
         print(email[0] + "\n\n" + email[1] if email else "Nothing to report.")
+        if args.page_dir:
+            write_status_page(args.page_dir, config, state, report, now)
         return
 
     sent = False
@@ -388,6 +541,12 @@ def main():
         state["unsent_events"] = report.events[-50:]
     else:
         state["unsent_events"] = []
+        incidents = state.setdefault("incidents", [])
+        for key, info in previous.items():
+            if key not in report.problems:
+                incidents.append({"message": info["message"], "since": info["since"], "until": now.isoformat()})
+        cutoff = (now - dt.timedelta(days=INCIDENT_DAYS)).isoformat()
+        state["incidents"] = [i for i in incidents if i["until"] > cutoff][-100:]
         state["problems"] = {
             key: {
                 "message": message,
@@ -396,7 +555,24 @@ def main():
             }
             for key, message in report.problems.items()
         }
+
+    import status_page
+
+    status_page.record_pass(state.setdefault("history", {}), report.problems, now.astimezone().date())
     save_state(state)
+
+    page_dir = args.page_dir or config.get("status_page_dir")
+    if page_dir:
+        write_status_page(page_dir, config, state, report, now)
+
+
+def write_status_page(page_dir, config, state, report, now):
+    import status_page
+
+    try:
+        status_page.write_page(page_dir, status_data(config, state, report, now))
+    except Exception:
+        print(traceback.format_exc())
 
 
 if __name__ == "__main__":

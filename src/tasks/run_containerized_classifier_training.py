@@ -1,3 +1,4 @@
+import os
 from typing import Literal, List
 
 from prefect import task, get_run_logger
@@ -6,6 +7,8 @@ from pydantic import BaseModel, Field
 
 from dojo.schemas import TrainingRunConfig
 from src.tasks.gpu import allocate_gpus, run_container
+
+DOJO_IMAGE_ENV = "AMPLIFY_DOJO_IMAGE"
 
 class VolumeMapping(BaseModel):
     host_path: str = Field(..., description="Path on the host machine")
@@ -20,6 +23,13 @@ def run_dojo_container(output_dir: str, input_volumes: List[VolumeMapping], subc
     ``device_ids`` is a GPU spec (see src/tasks/gpu.py); ['all'] means every idle GPU.
     """
 
+    image = os.environ.get(DOJO_IMAGE_ENV)
+    if not image:
+        raise RuntimeError(
+            f"{DOJO_IMAGE_ENV} is not set. Set it to the Image Classifier Dojo image "
+            "(<registry>/amplify/image_classifier_dojo:<tag>) in the serve process's environment, "
+            "e.g. in ~/.config/amplify-prefect/flows.env."
+        )
     client = docker.from_env()
     logger = get_run_logger()
 
@@ -47,7 +57,7 @@ def run_dojo_container(output_dir: str, input_volumes: List[VolumeMapping], subc
     with allocate_gpus(device_ids, logger) as gpus:
         run_container(
             client,
-            'harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.2',
+            image,
             command,
             logger,
             gpus=gpus,

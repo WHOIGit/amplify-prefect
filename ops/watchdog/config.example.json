@@ -48,17 +48,14 @@
     "ghcr.io/whoigit/stingray-image-analysis:latest",
     "ghcr.io/whoigit/ifcb-flow-metric:main",
     "ghcr.io/whoigit/amplify-prefect/ifcb-zip-storage:latest",
-    "harbor-registry.whoi.edu/amplify/image_classifier_dojo:v0.2.2"
+    "registry.example.org/amplify/image_classifier_dojo:v0.2.2"
   ],
   "image_check_minutes": 60,
   "disk_paths": [
     "/",
-    "/opt",
     "/var",
-    "/var/log",
     "/tmp",
-    "/srv/data",
-    "/srv/scratch"
+    "/data"
   ],
   "disk_max_percent": 90,
   "pending_max_minutes": 60,
@@ -67,5 +64,6 @@
     "default": 168,
     "yolo-inference": 720
   },
-  "remind_hours": 24
+  "remind_hours": 24,
+  "status_page_dir": "/path/to/amplify-prefect/ops/watchdog/www"
 }

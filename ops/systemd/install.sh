@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Make the Prefect stack start on boot, keep restarting, and start any
 # unit that is not running. Units that are already running are not restarted.
-# Run with sudo from anywhere: sudo /opt/amplify-prefect/ops/systemd/install.sh
+# Run with sudo: sudo ops/systemd/install.sh
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
