@@ -37,7 +37,7 @@ effect on the next cron run.
 
 ```
 crontab -e
-*/5 * * * * flock -n /tmp/prefect-watchdog.lock /opt/amplify-prefect/.venv/bin/python /opt/amplify-prefect/ops/watchdog/prefect_watchdog.py >> $HOME/.local/state/prefect-watchdog/cron.log 2>&1
+*/5 * * * * flock -n /tmp/prefect-watchdog.lock /path/to/amplify-prefect/.venv/bin/python /path/to/amplify-prefect/ops/watchdog/prefect_watchdog.py >> $HOME/.local/state/prefect-watchdog/cron.log 2>&1
 ```
 
 ## Useful commands

@@ -68,5 +68,5 @@
     "yolo-inference": 720
   },
   "remind_hours": 24,
-  "status_page_dir": "/opt/amplify-prefect/ops/watchdog/www"
+  "status_page_dir": "/path/to/amplify-prefect/ops/watchdog/www"
 }
