@@ -29,6 +29,15 @@ for its flow runs. The dojo flow needs `AMPLIFY_DOJO_IMAGE=<registry>/amplify/im
 In production each deployment is a systemd unit. `sudo ops/systemd/install.sh` makes them restart and start at boot,
 and `ops/watchdog/` emails when runs fail or something goes down.
 
+## Tests
+
+```bash
+uv pip install pytest && python -m pytest tests
+```
+
+`tests/flows/` runs every flow end to end on a temporary Prefect server with Docker and GPUs faked. A new flow needs a test
+there, or `test_every_flow_is_tested` fails. CI runs the tests on every PR.
+
 ## Flows
 
 | Deployment | What it does |
