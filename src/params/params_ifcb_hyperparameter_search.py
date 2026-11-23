@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Union
 
+from src.params.params_ifcb_flow_metric import BinType
+
 
 class HyperparameterRange(BaseModel):
     """Defines a range or set of values for a hyperparameter."""
@@ -17,6 +19,7 @@ class IFCBHyperparameterSearchParams(BaseModel):
     data_dir: str = Field(..., description="Directory containing IFCB point cloud data")
     base_output_dir: str = Field(..., description="Base directory where all hyperparameter search results will be saved")
     id_file: Optional[str] = Field(None, description="File containing list of IDs to load (one PID per line)")
+    bin_type: BinType = Field(..., description="Type of bins to train on: 'I' for I-bins or 'D' for D-bins (ignored if id_file is given)")
     n_jobs: int = Field(-1, description="Number of parallel jobs for load/extraction phase (-1 uses all CPUs)")
     model_filename: str = Field("classifier.pkl", description="Filename for the trained model")
     
