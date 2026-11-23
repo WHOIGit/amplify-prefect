@@ -8,21 +8,6 @@ class YoloModeEnum(str, Enum):
     inference = 'inference'
 
 
-# Parameters relevant to SegGPT inference
-class SegGPTRequest(BaseModel):
-    input_dir: str = Field(..., description="Directory containing input images")
-    prompt_dir: str = Field(..., description="Directory containing prompt images")
-    target_dir: str = Field(..., description="Directory containing target images")
-    output_dir: str = Field(..., description="Directory where results will be saved")
-    patch_images: bool = Field(..., description="Whether to patch images during processing")
-    num_prompts: int = Field(0, description="Number of prompts to use")
-
-
-# Parameters relevant to container infrastructure
-class InfrastructureParams(BaseModel):
-    tmp_dir: str = Field("/tmp/prefect", description="Temporary directory for Prefect operations")
-
-
 class YOLOTrainParams(BaseModel):
     data_dir: str = Field(..., description="Directory containing training dataset with dataset.yaml")
     output_dir: str = Field(..., description="Directory where training results will be saved")
