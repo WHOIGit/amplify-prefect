@@ -163,7 +163,11 @@ main: prefixed
 """)
     params = IFCBZipStorageParams(data_dir=str(data / "ifcb/normal"), storage_yaml=str(storage), env_file=str(env),
                                   num_workers=2)
-    run(ifcb_zip_storage, params)
+    try:
+        run(ifcb_zip_storage, params)
+    finally:
+        # pytest keeps recent temp folders; don't leave the real keys in one.
+        env.unlink()
 
 
 def test_feature_validation(external, tmp_path):
