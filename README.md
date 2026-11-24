@@ -38,6 +38,9 @@ uv pip install pytest && python -m pytest tests
 `tests/flows/` runs every flow end to end on a temporary Prefect server with Docker and GPUs faked. A new flow needs a test
 there, or `test_every_flow_is_tested` fails. CI runs the tests on every PR.
 
+`tests/smoke/` runs the flows for real, with the real images and GPUs, on a small set of sample data kept on the Prefect
+host. They are skipped unless `AMPLIFY_SMOKE_DATA` is set, and run nightly from cron; see `ops/smoke/README.md`.
+
 ## Flows
 
 | Deployment | What it does |
