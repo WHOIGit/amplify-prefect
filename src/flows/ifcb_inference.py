@@ -1,8 +1,9 @@
-from prefect import flow
+from prefect import flow, get_run_logger
 
 from src.params.params_ifcb_flow_metric import IFCBInferenceParams
 from src.tasks.pull_images import pull_images
 from src.tasks.run_ifcb_flow_metric_inference import run_ifcb_flow_metric_inference
+from src.utils.output_dir_utils import create_output_dir
 
 
 @flow(name="IFCB Flow Metric Inference")
@@ -20,7 +21,11 @@ def ifcb_inference_flow(ifcb_inference_params: IFCBInferenceParams):
     
     # Pull the latest image
     pull_images([ifcb_image])
-    
+
+    # The container runs as this user, so the output directory must exist
+    # first; otherwise Docker creates it owned by root.
+    create_output_dir(ifcb_inference_params.output_dir, get_run_logger())
+
     # Run IFCB flow metric inference
     run_ifcb_flow_metric_inference(ifcb_inference_params, ifcb_image)
 

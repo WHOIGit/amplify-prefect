@@ -6,6 +6,7 @@ from prefect import get_run_logger
 
 from src.params.params_ifcb_flow_metric import IFCBTrainingParams
 from src.utils.bin_utils import create_bin_type_id_file
+from src.utils.output_dir_utils import create_output_dir
 
 
 def generate_feature_config_yaml(params: IFCBTrainingParams) -> str:
@@ -74,6 +75,10 @@ def run_ifcb_training(ifcb_training_params: IFCBTrainingParams, ifcb_image: str)
     client = docker.from_env()
     logger = get_run_logger()
     
+    # The container runs as this user, so the output directory must exist
+    # first; otherwise Docker creates it owned by root.
+    create_output_dir(ifcb_training_params.output_dir, logger)
+
     # Set up volumes
     volumes = {
         ifcb_training_params.data_dir: {'bind': '/app/data', 'mode': 'ro'},
@@ -131,6 +136,7 @@ def run_ifcb_training(ifcb_training_params: IFCBTrainingParams, ifcb_image: str)
             ifcb_image,
             command_args,
             volumes=volumes,
+            user=f"{os.getuid()}:{os.getgid()}",
             remove=True,
             detach=False,
             stdout=True,
