@@ -88,6 +88,7 @@ def run_ifcb_hyperparameter_search(search_params: IFCBHyperparameterSearchParams
             data_dir=search_params.data_dir,
             output_dir=output_subdir,
             id_file=search_params.id_file,
+            bin_type=search_params.bin_type,
             n_jobs=search_params.n_jobs,
             contamination=param_combo['contamination'],
             aspect_ratio=search_params.aspect_ratio,
