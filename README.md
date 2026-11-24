@@ -26,6 +26,10 @@ Local edits do nothing.
 Site settings that stay out of the repo go in `~/.config/amplify-prefect/flows.env`, which `deploy_flow.py` loads
 for its flow runs. The dojo flow needs `AMPLIFY_DOJO_IMAGE=<registry>/amplify/image_classifier_dojo:<tag>`.
 
+Credentials live in Prefect AWS Credentials blocks, never in flow parameters, which are stored with each run and shown in
+the UI. `vasts3-creds` holds the S3/VAST keys the IFCB flows use; `dojo-aim-artifacts` holds the keys dojo uploads Aim
+artifacts with when `logger.artifacts_location` is an S3 bucket (the flow's `artifacts_credentials_block` names it).
+
 In production each deployment is a systemd unit. `sudo ops/systemd/install.sh` makes them restart and start at boot,
 and `ops/watchdog/` emails when runs fail or something goes down.
 

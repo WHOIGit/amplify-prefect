@@ -151,3 +151,50 @@ def test_classifier_training_needs_image_setting(fake_docker, tmp_path, monkeypa
     state = run_dojo_train_multiclass(str(tmp_path / "out"), [], DOJO_CONFIG, return_state=True)
     assert state.is_failed()
     assert fake_docker.calls == []
+
+
+S3_ARTIFACTS = {"bucket": "artifacts", "prefix": "aim", "endpoint": "https://s3.example.org"}
+
+
+def dojo_config_with(artifacts_location):
+    config = json.loads(json.dumps(DOJO_CONFIG))
+    config["logger"]["artifacts_location"] = artifacts_location
+    return config
+
+
+def test_classifier_training_takes_s3_keys_from_block(fake_docker, tmp_path, monkeypatch, caplog, recwarn):
+    from prefect_aws import AwsCredentials
+
+    AwsCredentials(aws_access_key_id="dojo-key", aws_secret_access_key="dojo-secret").save(
+        "dojo-aim-artifacts", overwrite=True
+    )
+    monkeypatch.setenv("AMPLIFY_DOJO_IMAGE", "registry.example.org/amplify/image_classifier_dojo:test")
+    state = run_dojo_train_multiclass(str(tmp_path / "out"), [], dojo_config_with(S3_ARTIFACTS), ["auto:1"],
+                                      return_state=True)
+
+    assert state.is_completed(), state.message
+    location = json.loads(fake_docker.call.arg("--logger"))["artifacts_location"]
+    assert location == {**S3_ARTIFACTS, "accesskey": "dojo-key", "secretkey": "dojo-secret"}
+    assert "dojo-secret" not in caplog.text
+    assert not [w for w in recwarn if "dojo-secret" in str(w.message)]
+    assert '"bucket":"artifacts"' in caplog.text
+
+
+def test_classifier_training_rejects_s3_keys_as_parameters(fake_docker, tmp_path, monkeypatch):
+    monkeypatch.setenv("AMPLIFY_DOJO_IMAGE", "registry.example.org/amplify/image_classifier_dojo:test")
+    config = dojo_config_with({**S3_ARTIFACTS, "accesskey": "key", "secretkey": "secret"})
+    try:
+        state = run_dojo_train_multiclass(str(tmp_path / "out"), [], config, return_state=True)
+    except Exception as error:
+        assert "Don't pass S3 keys" in str(error)
+    else:
+        assert state.is_failed() and "Don't pass S3 keys" in str(state.message)
+    assert fake_docker.calls == []
+
+
+def test_classifier_training_form_has_no_key_fields():
+    from prefect.utilities.callables import parameter_schema
+
+    schema = json.dumps(parameter_schema(run_dojo_train_multiclass.fn).model_dump())
+    assert "bucket" in schema
+    assert "accesskey" not in schema and "secretkey" not in schema
