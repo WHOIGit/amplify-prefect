@@ -32,6 +32,12 @@ deployments use), and emails the watchdog's recipients when a test starts
 failing or recovers. Results go to `~/.local/state/prefect-watchdog/smoke.json`
 and the full output to `smoke-logs/` next to it.
 
+GPU tests wait only 10 minutes for a free GPU there
+(`AMPLIFY_GPU_WAIT_MINUTES`), not the usual two hours, so a night when real
+flows hold the GPUs skips those tests instead of running past the 4-hour limit.
+Skipped tests are listed in the email; a test that was failing and is skipped
+stays failing rather than counting as recovered.
+
 ```
 crontab -e
 30 2 * * * flock -n /tmp/amplify-smoke.lock /path/to/amplify-prefect/.venv/bin/python /path/to/amplify-prefect/ops/smoke/run_smoke_tests.py >> $HOME/.local/state/prefect-watchdog/smoke-cron.log 2>&1
