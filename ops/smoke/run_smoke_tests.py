@@ -25,6 +25,9 @@ from prefect_watchdog import CONFIG_PATH, STATE_PATH, send_email  # noqa: E402
 SMOKE_DATA = Path(os.environ.get("AMPLIFY_SMOKE_DATA", Path.home() / ".local/share/amplify-prefect/smoke"))
 RESULTS_PATH = STATE_PATH.parent / "smoke.json"
 TIMEOUT_HOURS = 4
+# GPU tests skip if no GPU frees up in this long, rather than waiting the usual
+# two hours each behind real work.
+GPU_WAIT_MINUTES = "10"
 
 
 def export_branch(dest, branch):
@@ -40,29 +43,37 @@ def export_branch(dest, branch):
 
 def run_tests(code_dir, junit_path, extra_args):
     env = dict(os.environ, AMPLIFY_SMOKE_DATA=str(SMOKE_DATA))
+    env.setdefault("AMPLIFY_GPU_WAIT_MINUTES", GPU_WAIT_MINUTES)
     command = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/smoke",
                f"--junitxml={junit_path}", *extra_args]
     return subprocess.run(command, cwd=code_dir, env=env, timeout=TIMEOUT_HOURS * 3600,
                           capture_output=True, text=True)
 
 
+def first_line(element, default):
+    return ((element.get("message") or "").strip().splitlines() or [default])[0][:300]
+
+
 def read_junit(path):
-    """{test name: None if it passed or was skipped, else a short failure message}."""
-    results = {}
+    """({test name: failure message}, {test name: skip reason}, [names that passed])."""
+    failures, skipped, passed = {}, {}, []
     for case in ET.parse(path).iter("testcase"):
+        name = case.get("name")
         failure = case.find("failure")
         if failure is None:
             failure = case.find("error")
-        message = None
         if failure is not None:
-            message = (failure.get("message") or "").strip().splitlines()[0][:300] or "failed"
-        results[case.get("name")] = message
-    return results
+            failures[name] = first_line(failure, "failed")
+        elif case.find("skipped") is not None:
+            skipped[name] = first_line(case.find("skipped"), "skipped")
+        else:
+            passed.append(name)
+    return failures, skipped, sorted(passed)
 
 
-def build_email(failures, previous, label, run_id):
+def build_email(failures, skipped, previous, label, run_id):
     new = {t: m for t, m in failures.items() if t not in previous}
-    recovered = sorted(t for t in previous if t not in failures)
+    recovered = sorted(t for t in previous if t not in failures and t not in skipped)
     if not (new or recovered):
         return None
     parts = []
@@ -78,6 +89,8 @@ def build_email(failures, previous, label, run_id):
         sections.append("STILL FAILING\n" + "\n".join(f"- {t}: {m}" for t, m in still.items()))
     if recovered:
         sections.append("RECOVERED\n" + "\n".join(f"- {t}" for t in recovered))
+    if skipped:
+        sections.append("SKIPPED (not tested tonight)\n" + "\n".join(f"- {t}: {m}" for t, m in skipped.items()))
     sections.append(f"Full output: {run_id}")
     sections.append(f"-- run_smoke_tests on {socket.getfqdn()}, {label}")
     return ", ".join(parts), "\n\n".join(sections)
@@ -103,32 +116,39 @@ def main():
         code_dir.mkdir()
         commit = export_branch(code_dir, args.branch)
         junit = Path(tmp) / "junit.xml"
+        failures, skipped, passed = {}, {}, []
         try:
             result = run_tests(code_dir, junit, pytest_args)
-            log_path.write_text(result.stdout + result.stderr)
-            results = read_junit(junit) if junit.exists() else {}
-            if not results:
-                tail = (result.stdout + result.stderr).strip().splitlines()[-1:] or ["no output"]
-                results = {"(test run)": f"pytest exited {result.returncode}: {tail[0][:300]}"}
-        except subprocess.TimeoutExpired:
-            results = {"(test run)": f"timed out after {TIMEOUT_HOURS} h"}
+            output = result.stdout + result.stderr
+            if junit.exists():
+                failures, skipped, passed = read_junit(junit)
+            if not (failures or skipped or passed):
+                tail = output.strip().splitlines()[-1:] or ["no output"]
+                failures = {"(test run)": f"pytest exited {result.returncode}: {tail[0][:300]}"}
+        except subprocess.TimeoutExpired as timeout:
+            output = "".join(text.decode(errors="replace") if isinstance(text, bytes) else text
+                             for text in (timeout.stdout, timeout.stderr) if text)
+            failures = {"(test run)": f"timed out after {TIMEOUT_HOURS} h"}
+        log_path.write_text(output)
 
-    failures = {t: m for t, m in results.items() if m}
-    passed = sorted(t for t, m in results.items() if not m)
     label = f"{args.branch} at {commit}"
-    print(f"{started:%Y-%m-%d %H:%M} {label}: {len(passed)} passed or skipped, {len(failures)} failed")
+    print(f"{started:%Y-%m-%d %H:%M} {label}: {len(passed)} passed, {len(skipped)} skipped, {len(failures)} failed")
     for test, message in failures.items():
         print(f"  FAILED {test}: {message}")
+    for test, message in skipped.items():
+        print(f"  SKIPPED {test}: {message}")
 
-    email = build_email(failures, previous, label, log_path)
+    email = build_email(failures, skipped, previous, label, log_path)
     if args.dry_run or args.branch != "main":
         print("\n".join(email) if email else "(no email: results unchanged)")
         return
     if email:
         send_email(config, *email)
+    # A failing test that was skipped tonight hasn't recovered; keep it as failing.
+    failures.update({t: m for t, m in previous.items() if t in skipped})
     RESULTS_PATH.write_text(json.dumps({
         "finished": dt.datetime.now(dt.timezone.utc).isoformat(), "commit": commit,
-        "passed": passed, "failures": failures, "log": str(log_path),
+        "passed": passed, "skipped": skipped, "failures": failures, "log": str(log_path),
     }, indent=2))
     # Keep a month of logs.
     for old in sorted(log_dir.glob("*.log"))[:-30]:
